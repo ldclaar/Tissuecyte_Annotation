@@ -1,7 +1,7 @@
-### Tissuecyte_Annotation
+# Tissuecyte_Annotation
 App to annotate Tissuecyte Brains
 
-### Environment Setup
+# Environment Setup
 First, create a new environment, and then activate the environment (app is currently using python 3.9):
 
 ```
@@ -21,8 +21,8 @@ And then `cd` to the directory where the repo was cloned and install the package
 pip install -e .
 ```
 
-### Using the App
-# Getting the Affine Aligned Volume
+# Using the App
+### Getting the Affine Aligned Volume
 First, the affine aligned volume needs to be extracted before proceeding to annotating. To do this, run the following command (example shown below)
 
 ```
