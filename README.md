@@ -53,7 +53,7 @@ The app may take several mintues to load, and once it has loaded, the following 
   * Annotated points will be automatically saved to a CSV, which has 4 columns (AP, DV, ML, and probe_name). The CSV is stored in the following location
     `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/probe_annotations_mouseID.csv`
   * Undo Last Annotation - undos the last annotation made for the selected probe
-  * Delete Points for Selected Probe - deletes all of the points for the selected probe on the current slice (only deletes all points on the current slice, not acorss all slices). A warning message will appear to confirm
+  * Delete Points for Selected Probe - deletes all of the points for the selected probe on the current slice (only deletes all points on the current slice, not across all slices). A warning message will appear to confirm
   * Hide Points - Hides the points 
   * Show Points - Shows the points
   * RGB sliders/toggle - modifies the display for the given channels
