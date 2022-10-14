@@ -43,3 +43,5 @@ python annotation_app_pyqtgraph_10.py --mouseID mouseID
 ```
 
 The app may take several mintues to load, and once it has loaded, the following screen should be displayed
+
+![image](https://github.com/arjunsridhar12345/Tissuecyte_Annotation/blob/main/images/annotation_app.png)
