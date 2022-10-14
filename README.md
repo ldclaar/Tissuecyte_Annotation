@@ -34,3 +34,12 @@ Note: Access to HPC is a requirement as this script calls an executable on the n
 This process can take some time (around 20-30 mins usually). The output will be saved to he following directory on the network
 
 `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID`
+
+### Running the Annotation App
+To use the annotation app, run the following command
+
+```
+python annotation_app_pyqtgraph_10.py --mouseID mouseID
+```
+
+The app may take several mintues to load, and once it has loaded, the following screen should be displayed
