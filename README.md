@@ -48,11 +48,15 @@ The app may take several mintues to load, and once it has loaded, the following 
 
 ### Functions of App
   * Point Lock - Disables annotating, deleting, and undoing points. When point lock is ON, all of these features are disabled
-  * Annotating - Select the probe and day using the drop downs, and then disable point lock by clicking on the point lock button to set it to OFF. Then, click anywhre on the screen to create an annotation point
+  * Annotating - Select the probe and day using the drop downs, and then disable point lock by clicking on the point lock button to set it to OFF. Then, click anywhre on the screen to create an annotation point. Once finished, enable point lock to prevent accidentally annotating unwanted points
+  * Annotated points will be automatically saved to a CSV, which has 4 columns (AP, DV, ML, and probe_name). The CSV is stored in the following location
+    `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/probe_annotations_mouseID.csv`
   * Undo Last Annotation - undos the last annotation made for the selected probe
   * Delete Points for Selected Probe - deletes all of the points for the selected probe on the current slice (only deletes all points on the current slice, not acorss all slices). A warning message will appear to confirm
   * Hide Points - Hides the points 
   * Show Points - Shows the points
   * RGB sliders/toggle - modifies the display for the given channels
-  * Coronal, Horizontal, Saggital buttons - change the view depending on which button is pressed
-  * To move to different slices arcoss the brain, drag the main slider or use the left/right arrow keys 
+  * Coronal, Horizontal, Sagittal buttons - change the view depending on which button is pressed
+  * To move to different slices arcoss the brain, drag the main slider or use the left/right arrow keys
+
+### Warp Points to CCF
