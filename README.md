@@ -1,5 +1,5 @@
 # Tissuecyte_Annotation
-App for Tissuecyte Annotation
+App for Tissuecyte Annotation. Annotations are done in a 10 Micron space and then warped to the CCF space.
 
 # Environment Setup
 First, create a new environment, and then activate the environment (app is currently using python 3.9.12):
@@ -22,8 +22,8 @@ pip install -e .
 ```
 
 # Using the App
-### Getting the Affine Aligned Volume
-First, the affine aligned volume needs to be extracted before proceeding to annotating. To do this, run the following command (example shown below)
+### Getting the 10 Micron Volume
+First, the 10 micron volume needs to be extracted before proceeding to annotating. To do this, run the following command (example shown below)
 
 ```
 python resample_images.py --user allen_institute_username --password allen_institute_password --mouseID mouseID
@@ -60,3 +60,7 @@ The app may take several mintues to load, and once it has loaded, the following 
   * To move to different slices arcoss the brain, drag the main slider or use the left/right arrow keys
 
 ### Warp Points to CCF
+  * Once all points have been annotated, click the Warp Annotations to CCF button to warp the points. Once this process has finished, a popup will appear saying that a new window will open with the warped points. Click OK and then wait for the CCF volume to be loaded. 
+  * Then, scroll through the slices to see the warped points. Some of the warped points may appear on different slices, but they should generally be in the same regions of interest when compared with the 10 micron volume.
+  * The warped points will be saved to following location
+    `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/probe_annotations_mouseID_warped.csv`
