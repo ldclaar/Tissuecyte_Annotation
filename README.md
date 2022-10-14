@@ -1,8 +1,8 @@
 # Tissuecyte_Annotation
-App to annotate Tissuecyte Brains
+App for Tissuecyte Annotation
 
 # Environment Setup
-First, create a new environment, and then activate the environment (app is currently using python 3.9):
+First, create a new environment, and then activate the environment (app is currently using python 3.9.12):
 
 ```
 conda create -n tissuecyte_annotation python=3.9.12
@@ -45,3 +45,14 @@ python annotation_app_pyqtgraph_10.py --mouseID mouseID
 The app may take several mintues to load, and once it has loaded, the following screen should be displayed
 
 ![image](https://github.com/arjunsridhar12345/Tissuecyte_Annotation/blob/main/images/annotation_app.png)
+
+### Functions of App
+  * Point Lock - Disables annotating, deleting, and undoing points. When point lock is ON, all of these features are disabled
+  * Annotating - Select the probe and day using the drop downs, and then disable point lock by clicking on the point lock button to set it to OFF. Then, click anywhre on the screen to create an annotation point
+  * Undo Last Annotation - undos the last annotation made for the selected probe
+  * Delete Points for Selected Probe - deletes all of the points for the selected probe on the current slice (only deletes all points on the current slice, not acorss all slices). A warning message will appear to confirm
+  * Hide Points - Hides the points 
+  * Show Points - Shows the points
+  * RGB sliders/toggle - modifies the display for the given channels
+  * Coronal, Horizontal, Saggital buttons - change the view depending on which button is pressed
+  * To move to different slices arcoss the brain, drag the main slider or use the left/right arrow keys 
