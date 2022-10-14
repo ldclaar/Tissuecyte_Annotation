@@ -31,8 +31,8 @@ python resample_images.py --user allen_institute_username --password allen_insti
 python resample_images.py --user arjun.sridhar --password arjun's password --mouseID 608671
 ```
 
-Note: Access to HPC is a requirement as this script calls an executable on the network. To get access to HPC, go to ServiceNow and submit a ticket
-This process can take some time (around 20-30 mins usually). The output will be saved to he following directory on the network
+Note: Access to HPC/Linux is a requirement as this script calls an executable on the network. To get access to HPC, go to ServiceNow and submit a ticket.
+Running this process can take some time (around 20-30 mins usually). The output will be saved to he following directory on the network
 
 `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID`
 
