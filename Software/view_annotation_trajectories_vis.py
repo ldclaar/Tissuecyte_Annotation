@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import plotly
 import matplotlib.pyplot as plt
 from PyQt5.QtCore import Qt, QAbstractTableModel
 from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QSizePolicy, QSlider, QSpacerItem, QTableView, \
@@ -15,8 +14,6 @@ from matplotlib.figure import Figure
 import sys
 import pyqtgraph as pg
 import os
-from allensdk.core.mouse_connectivity_cache import MouseConnectivityCache
-from bg_atlasapi.bg_atlas import BrainGlobeAtlas
 from matplotlib import cm
 import argparse
 import pathlib

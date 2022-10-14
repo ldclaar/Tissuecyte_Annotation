@@ -1,0 +1,8 @@
+README.md
+setup.cfg
+setup.py
+tissuecyte_annotation.egg-info/PKG-INFO
+tissuecyte_annotation.egg-info/SOURCES.txt
+tissuecyte_annotation.egg-info/dependency_links.txt
+tissuecyte_annotation.egg-info/requires.txt
+tissuecyte_annotation.egg-info/top_level.txt
