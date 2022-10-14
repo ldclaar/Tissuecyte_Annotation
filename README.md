@@ -20,6 +20,7 @@ And then `cd` to the directory where the repo was cloned and install the package
 ```
 pip install -e .
 ```
+Then `cd Software` to begin using the app
 
 # Using the App
 ### Getting the 10 Micron Volume
