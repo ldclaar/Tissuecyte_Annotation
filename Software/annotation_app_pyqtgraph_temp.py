@@ -50,7 +50,7 @@ class TissuecyteAppTemp(QWidget):
     def initUI(self):
         self.setWindowTitle(self.title)
         # sets the rectangle for the UI app
-        self.setGeometry(self.left, self.top, self.width, self.height)
+        #self.setGeometry(self.left, self.top, self.width, self.height)
 
         # 4 layouts - each has layouts within it
         self.leftLayout = QVBoxLayout()
