@@ -23,6 +23,7 @@ import SimpleITK as sitk
 from glob import glob
 import pandas as pd
 import pathlib
+from psycopg2 import connect, extras
 
 # constants used by app
 DEFAULT_SLICE = 181
@@ -32,7 +33,7 @@ DEFAULT_COLOR_VALUES = [[0, 3000], [0, 3000], [0, 1000]]
 
 class TissuecyteAppTemp(QWidget):
     # initialize fields
-    def __init__(self, annotations):
+    def __init__(self, annotations, mouse_id):
         super().__init__()
         self.title = 'Tissuecyte Annotation CCF 25 RESOLUTION'
         self.left = 500
@@ -41,7 +42,7 @@ class TissuecyteAppTemp(QWidget):
         # self.height = int(400*SCALING_FACTOR)
         self.width = int(456*SCALING_FACTOR) #default = coronal view
         self.height = int(320*SCALING_FACTOR)
-
+        self.mouseID = mouse_id
         # initialize UI
         self.initUI()
         self.loadData(annotations)
@@ -718,25 +719,67 @@ class TissuecyteAppTemp(QWidget):
         self.annotations = annotations
         self.refreshImage(value_draw=True)
     
-    def loadAnnotationAffineVol(self):
-        annotations = pd.read_csv('C:/608671/output/volumes_25/Probe_B1_annotations_warped.csv')
+    # query lims and return result from given query
+    def query_lims(self, query_string):
+        con = connect(
+            dbname='lims2',
+            user='limsreader',
+            host='limsdb2',
+            password='limsro',
+            port=5432,
+        )
+        con.set_session(
+            readonly=True, 
+            autocommit=True,
+        )
+        cursor = con.cursor(
+            cursor_factory=extras.RealDictCursor,
+        )
+        cursor.execute(query_string)
+        result = cursor.fetchall()
+    
+        return result
 
-        points = annotations[['AP', 'DV', 'ML']].to_numpy()
-        volume = np.zeros((528, 320, 456))
+    # gets the tissuecyte info for the mouse id
+    # ssh into cluster using credentials given
+    # runs resampling and outputs to directory
+    def get_tc_info(self, mouse_id):
+        TISSUECYTE_QRY = '''
+            SELECT *
+            FROM image_series im
+            WHERE im.specimen_id = {}
+        '''
 
-        for point in points:
-            volume[point[0], point[1], point[2]] = 1024
+        tc = dict(self.query_lims(TISSUECYTE_QRY.format(self.get_specimen_id_from_labtracks_id(int(mouse_id)))))
+        storage_directory = tc['storage_directory']
 
-        return volume
+        return storage_directory
+
+    def get_specimen_id_from_labtracks_id(self, labtracks_id):
+        SPECIMEN_QRY = '''
+            SELECT *
+            FROM specimens sp
+            WHERE sp.external_specimen_name=cast({} as character varying)
+        '''
+
+        mouse_info = self.query_lims(SPECIMEN_QRY.format(int(labtracks_id)))
+        return mouse_info[0]['id']
 
     def loadVolume(self):
         ### Unzip resampled images, unless already done ###
+        self.current_directory = get_tc_info(self.mouseID)
+        resampled_images = glob(os.path.join(self.current_directory,  'resampled_*.mhd'), recursive=True)
+        if len(resampled_images) == 0:
+            print('Extracting resampled images...')
+            with ZipFile(fname, 'r') as zipObj:
+                zipObj.extractall(path=self.current_directory)
+
         print('Loading resampled images...')
         intensity_arrays = {}
 
-        self.dir = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/field_reference')
+        #self.dir = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/field_reference')
         for imcolor in ['red', 'green', 'blue']:
-            resamp_image = sitk.ReadImage(os.path.join(self.dir, 'resampled_' + imcolor + '.mhd'))
+            resamp_image = sitk.ReadImage(os.path.join(self.current_directory, 'resampled_' + imcolor + '.mhd'))
             intensity_arrays[imcolor] = sitk.GetArrayFromImage(resamp_image).T
 
         self.int_arrays = intensity_arrays

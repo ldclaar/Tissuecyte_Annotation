@@ -368,7 +368,7 @@ class TissuecyteApp10(QWidget):
         popup = QMessageBox()
         popup.setText('A new window will appear with the 25 micron resolution. Scroll throught the slices to view the warped annotated points')
         popup.exec_()
-        TissuecyteAppTemp(annotations_warped)
+        TissuecyteAppTemp(annotations_warped, self.mouseID)
 
     def pointLockToggle(self):
         if self.point_lock:
