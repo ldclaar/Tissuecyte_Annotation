@@ -20,7 +20,7 @@ parser.add_argument('--downsampleFactor', help='Downsample images by this factor
 # ssh into hpc using username and password
 # calls resample shell script to do the resampling with given mouse id
 # add downsampling factor
-def ssh_to_hpc(user, psswd, mouse_id):
+def ssh_to_hpc(user, psswd, mouse_id, down_sample):
     #proc = Popen(['ssh', '-T', 'arjun.sridhar@hpc-login'], stdin=PIPE, encoding='utf8')
     #proc.communicate(input='$otex5Xp')
 
@@ -31,7 +31,7 @@ def ssh_to_hpc(user, psswd, mouse_id):
 
     #cmd_allocation = 'srun -c 1 --mem=1mb -p celltypes --pty bash; pwd'
     # cd to directory and and call resampling job
-    cmd_execute = 'cd /allen/scratch/aibstemp/arjun.sridhar; pwd; srun -N1 -c50 -t5:00:00 --mem=250gb -p celltypes resample_job.sh {}'.format(mouse_id) 
+    cmd_execute = 'cd /allen/scratch/aibstemp/arjun.sridhar; pwd; srun -N1 -c50 -t5:00:00 --mem=250gb -p celltypes resample_job.sh {} {}'.format(mouse_id, down_sample) 
 
     ssh=paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -52,4 +52,10 @@ if __name__ == '__main__':
     user = args.user
     password = args.password
     mouse_id = args.mouseID
-    ssh_to_hpc(user, password, mouse_id)
+
+    if args.downsampleFactor is None:
+        down_sample = '8'
+    else:
+        down_sample = args.downsampleFactor
+
+    ssh_to_hpc(user, password, mouse_id, down_sample)
