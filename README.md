@@ -32,7 +32,7 @@ python resample_images.py --user arjun.sridhar --password arjun's password --mou
 ```
 
 Note: Access to HPC/Linux is a requirement as this script calls an executable on the network. To get access to HPC, go to ServiceNow and submit a ticket.
-Running this process can take some time (around 20-30 mins usually). The output will be saved to he following directory on the network
+Running this process can take some time (around 20-30 mins usually). The output will be saved to the following directory on the network
 
 `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID`
 
