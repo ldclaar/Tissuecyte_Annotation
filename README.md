@@ -59,6 +59,8 @@ The app may take several mintues to load, and once it has loaded, the following 
   * RGB sliders/toggle - modifies the display for the given channels
   * Coronal, Horizontal, Sagittal buttons - change the view depending on which button is pressed
   * To move to different slices arcoss the brain, drag the main slider or use the left/right arrow keys
+  * Zoom in/out - use mouse wheel
+  * Can move image around my holding the left mouse button and then dragging anywhere on the screen
 
 ### Warp Points to CCF
   * Once all points have been annotated, click the Warp Annotations to CCF button to warp the points. Once this process has finished, a popup will appear saying that a new window will open with the warped points. Click OK and then wait for the CCF volume to be loaded. 
