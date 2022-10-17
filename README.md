@@ -24,10 +24,10 @@ Then `cd Software` to begin using the app
 
 # Using the App
 ### Getting the 10 Micron Volume
-First, the 10 micron volume needs to be extracted before proceeding to annotating. To do this, run the following command (example shown below)
+First, the 10 micron volume needs to be extracted before proceeding to annotating. To do this, run the following command giving the mouse id that needs to be annotated (example shown below)
 
 ```
-python resample_images.py --user allen_institute_username --password allen_institute_password --mouseID mouseID
+python resample_images.py --user <allen_institute_username> --password <allen_institute_password> --mouseID <mouseID>
 python resample_images.py --user arjun.sridhar --password arjun's password --mouseID 608671
 ```
 
@@ -40,7 +40,7 @@ Running this process can take some time (around 20-30 mins usually). The output 
 To use the annotation app, run the following command
 
 ```
-python annotation_app_pyqtgraph_10.py --mouseID mouseID
+python annotation_app_pyqtgraph_10.py --mouseID <mouseID>
 ```
 
 The app may take several mintues to load, and once it has loaded, the following screen should be displayed
