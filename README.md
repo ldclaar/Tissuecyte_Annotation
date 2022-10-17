@@ -65,3 +65,5 @@ The app may take several mintues to load, and once it has loaded, the following 
   * Then, scroll through the slices to see the warped points. Some of the warped points may appear on different slices, but they should generally be in the same regions of interest when compared with the 10 micron volume.
   * The warped points will be saved to following location
     `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/probe_annotations_mouseID_warped.csv`
+  * In addition, each of the probes annotated will have a CSV file in the following location
+    `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_probe_annotations_mouseID_warped.csv`
