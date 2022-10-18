@@ -27,7 +27,7 @@ import argparse
 import pathlib
 from warp_image import warp_points, warp_execute
 from annotation_app_pyqtgraph_temp import TissuecyteAppTemp
-
+from get_tissuecyte_info import get_tc_info
 # constants used by app
 DEFAULT_SLICE = 181
 DEFAULT_VIEW = 0
@@ -56,14 +56,10 @@ class TissuecyteApp10(QWidget):
         self.dir = '//allen/programs/mindscope/workgroups/np-behavior/tissuecyte'
         self.workingDirectory = pathlib.Path('{}/{}'.format(self.dir, self.mouseID))
         print('Fetching Data')
-        self.storage_directory = pathlib.Path('{}/field_reference'.format(self.dir))
-        #model_directory = '//allen/programs/celltypes/production/0378/informatics/model_september_2017/P56'
         self.model_directory = pathlib.Path('{}/field_reference'.format(self.dir))
-        #input_file = os.path.join( working_directory, 'output_8', 'affine_vol_10.mhd')
-    
-        #affineAligned = sitk.ReadImage( input_file )
-        #affineAligned.SetSpacing((25, 25, 25))
-        self.field_file = os.path.join( self.storage_directory, 'dfmfld.mhd')
+
+        self.field_path = os.path.join(get_tc_info(self.mouseID), 'local_alignment', 'dfmfld.mhd')
+        self.field_file = pathlib.Path('/{}'.format(self.field_path))
         self.reference_file = os.path.join( self.model_directory, 'average_template_25.nrrd')
 
         self.reference = sitk.ReadImage( self.reference_file )
@@ -770,7 +766,6 @@ class TissuecyteApp10(QWidget):
     def loadData(self):
         self.loadVolume()
         if os.path.exists(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID))): # use exisitng csv
-            print('hello')
             self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)), index_col=0)
         else: # create new dataframe
             self.annotations = pd.DataFrame(columns = ['AP','ML','DV', 'probe_name'])

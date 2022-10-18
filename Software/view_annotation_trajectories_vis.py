@@ -446,7 +446,7 @@ class AnnotationProbesViewer(QWidget):
                         color = tuple(t / 255 for t in col)
                         #vis.plot(x, y, z, mc=color, mw=5, ms='s', lw=0, mec=color, axes=self.ax)
                         #print(l.points)
-                        vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color, axes=self.ax)
+                        vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color)
                         legend.append(probe_trial)
                 else: # make probe light grey, needs to be reassigned later
                     legend.append(probe_trial)

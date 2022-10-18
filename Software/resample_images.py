@@ -21,9 +21,6 @@ parser.add_argument('--downsampleFactor', help='Downsample images by this factor
 # calls resample shell script to do the resampling with given mouse id
 # add downsampling factor
 def ssh_to_hpc(user, psswd, mouse_id, down_sample):
-    #proc = Popen(['ssh', '-T', 'arjun.sridhar@hpc-login'], stdin=PIPE, encoding='utf8')
-    #proc.communicate(input='$otex5Xp')
-
     print('User', user)
     hostname='hpc-login'
     username=user
@@ -37,10 +34,6 @@ def ssh_to_hpc(user, psswd, mouse_id, down_sample):
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh.connect(hostname, username=username, password=password)
     print('Connection succesful, executing resampling')
-
-    #stdin,stdout,stderr=ssh.exec_command(cmd_allocation)
-    #print('Allocation output', stdout.read().decode())
-    #print('Allocation Error', stderr.read().decode())
 
     stdin,stdout,stderr=ssh.exec_command(cmd_execute)
     print('Output', stdout.read().decode())

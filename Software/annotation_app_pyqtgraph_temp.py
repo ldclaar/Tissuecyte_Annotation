@@ -23,7 +23,7 @@ import SimpleITK as sitk
 from glob import glob
 import pandas as pd
 import pathlib
-from psycopg2 import connect, extras
+from get_tissuecyte_info import get_tc_info
 import shutil
 
 # constants used by app
@@ -104,6 +104,7 @@ class TissuecyteAppTemp(QWidget):
         self.probeLayout = QGridLayout()
 
         self.probeNames = QComboBox()
+        self.probeNames.setFocusPolicy(QtCore.Qt.NoFocus)
         self.probeNames.addItem('Probe')
         self.probeNames.addItem('A')
         self.probeNames.addItem('B')
@@ -116,6 +117,7 @@ class TissuecyteAppTemp(QWidget):
         self.probeLayout.addWidget(self.probeNames, 0, 0)
         
         self.probeNumber = QComboBox()
+        self.probeNumber.setFocusPolicy(QtCore.Qt.NoFocus)
         self.probeNumber.addItem('Trial')
         self.probeNumber.addItem('1')
         self.probeNumber.addItem('2')
@@ -127,6 +129,7 @@ class TissuecyteAppTemp(QWidget):
         self.trial = 'Trial'
 
         self.colorLabel = QLabel(text='Probe Color and Pattern')
+        self.colorLabel.setFocusPolicy(QtCore.Qt.NoFocus)
         self.colorLabel.setStyleSheet('border: 1px solid black;')
         self.probeLayout.addWidget(self.colorLabel, 0, 2)
         self.leftLayout.addLayout(self.probeLayout)
@@ -134,16 +137,19 @@ class TissuecyteAppTemp(QWidget):
 
         # coronal button view
         self.coronalButton = QPushButton('Coronal', self)
+        self.coronalButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.coronalButton.setToolTip('Switch to coronal view')
         self.coronalButton.clicked.connect(self.viewCoronal)
 
         # horizontal button view
         self.horizontalButton = QPushButton('Horizontal', self)
+        self.horizontalButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.horizontalButton.setToolTip('Switch to horizontal view')
         self.horizontalButton.clicked.connect(self.viewHorizontal)
 
         # sagittal button view
         self.sagittalButton = QPushButton('Sagittal', self)
+        self.sagittalButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.sagittalButton.setToolTip('Switch to sagittal view')
         self.sagittalButton.clicked.connect(self.viewSagittal)
 
@@ -151,6 +157,7 @@ class TissuecyteAppTemp(QWidget):
 
         # save button
         self.saveButton = QPushButton('Save', self)
+        self.saveButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.saveButton.setToolTip('Save values as CSV')
         self.saveButton.clicked.connect(self.saveData)
 
@@ -162,28 +169,33 @@ class TissuecyteAppTemp(QWidget):
         """
         # delete button
         self.deleteButton = QPushButton('Delete Points For Selected Probe', self)
+        self.deleteButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.deleteButton.setToolTip('Delete Probe data')
         self.deleteButton.clicked.connect(self.deletePoint)
         self.deleteButton.setStyleSheet("color: red;font: bold 12px")
 
         # delete button
         self.undoButton = QPushButton('Undo Last Annotation For Selected Probe', self)
+        self.undoButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.undoButton.setToolTip('Undo Last Annotation For Selected Probe')
         self.undoButton.clicked.connect(self.undoLastAnnotation)
         self.undoButton.setStyleSheet("color: red;font: bold 12px")
 
         # hide button
         self.hideButton = QPushButton('Hide Points', self)
+        self.hideButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.hideButton.setToolTip('Hide Points')
         self.hideButton.clicked.connect(self.hidePoints)
 
         # unhide button
         self.showButton = QPushButton('Show Points', self)
+        self.showButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.showButton.setToolTip('Show Points')
         self.showButton.clicked.connect(self.showPoints)
 
         # point lock
         self.pointLockButton = QPushButton('Point Lock ON', self)
+        self.pointLockButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.pointLockButton.setToolTip('Toggle point lock')
         self.pointLockButton.clicked.connect(self.pointLockToggle)
         self.pointLockButton.setStyleSheet("background-color: rgb(170,0,0);color: white;font: bold 12px")
@@ -206,16 +218,19 @@ class TissuecyteAppTemp(QWidget):
 
         # check boxes to toggle rgb values off/on
         self.redCheck = QCheckBox('Toggle Red')
+        self.redCheck.setFocusPolicy(QtCore.Qt.NoFocus)
         self.redOld = None
         self.isRedChecked = False
         self.redCheck.clicked.connect(self.toggleRed)
 
         self.greenCheck = QCheckBox('Toggle Green')
+        self.greenCheck.setFocusPolicy(QtCore.Qt.NoFocus)
         self.greenOld = None
         self.isGreenChecked = False
         self.greenCheck.clicked.connect(self.toggleGreen)
 
         self.blueCheck = QCheckBox('Toggle Blue')
+        self.blueCheck.setFocusPolicy(QtCore.Qt.NoFocus)
         self.blueOld = None
         self.isBlueChecked = False
         self.blueCheck.clicked.connect(self.toggleBlue)
@@ -234,6 +249,7 @@ class TissuecyteAppTemp(QWidget):
 
         # rgb sliders to toggle value
         self.redSlider = QRangeSlider(Qt.Horizontal)
+        self.redSlider.setFocusPolicy(QtCore.Qt.NoFocus)
         self.redSlider.setMinimum(DEFAULT_COLOR_VALUES[0][0])
         self.redSlider.setMaximum(DEFAULT_COLOR_VALUES[0][1])
         self.redSlider.setValue((DEFAULT_COLOR_VALUES[0][0], DEFAULT_COLOR_VALUES[0][1]))
@@ -242,6 +258,7 @@ class TissuecyteAppTemp(QWidget):
         self.redSlider.valueChanged.connect(self.redSliderMoved)
 
         self.greenSlider = QRangeSlider(Qt.Horizontal)
+        self.greenSlider.setFocusPolicy(QtCore.Qt.NoFocus)
         self.greenSlider.setMinimum(DEFAULT_COLOR_VALUES[1][0])
         self.greenSlider.setMaximum(DEFAULT_COLOR_VALUES[1][1])
         self.greenSlider.setValue((DEFAULT_COLOR_VALUES[1][0], DEFAULT_COLOR_VALUES[1][1]))
@@ -250,6 +267,7 @@ class TissuecyteAppTemp(QWidget):
         self.greenSlider.valueChanged.connect(self.greenSliderMoved)
 
         self.blueSlider = QRangeSlider(Qt.Horizontal)
+        self.blueSlider.setFocusPolicy(QtCore.Qt.NoFocus)
         self.blueSlider.setMinimum(DEFAULT_COLOR_VALUES[2][0])
         self.blueSlider.setMaximum(DEFAULT_COLOR_VALUES[2][1])
         self.blueSlider.setValue((DEFAULT_COLOR_VALUES[2][0], DEFAULT_COLOR_VALUES[2][1]))
@@ -712,64 +730,8 @@ class TissuecyteAppTemp(QWidget):
     # loads data from resampled input directory and csv input if it exists
     def loadData(self, annotations):
         self.loadVolume()
-        """
-        if os.path.exists(self.output_dir_csv): # use exisitng csv
-            print('hello')
-            self.annotations = pd.read_csv(self.output_dir_csv, index_col=0)
-        else: # create new dataframe
-            self.annotations = pd.DataFrame(columns = ['AP','ML','DV', 'probe_name'])
-        """
         self.annotations = annotations
         self.refreshImage(value_draw=True)
-    
-    # query lims and return result from given query
-    def query_lims(self, query_string):
-        con = connect(
-            dbname='lims2',
-            user='limsreader',
-            host='limsdb2',
-            password='limsro',
-            port=5432,
-        )
-        con.set_session(
-            readonly=True, 
-            autocommit=True,
-        )
-        cursor = con.cursor(
-            cursor_factory=extras.RealDictCursor,
-        )
-        cursor.execute(query_string)
-        result = cursor.fetchall()
-
-        return result
-
-    # gets the tissuecyte info for the mouse id
-    def get_tc_info(self, mouse_id):
-        TISSUECYTE_QRY = '''
-            SELECT *
-            FROM image_series im
-            WHERE im.specimen_id = {}
-        '''
-
-        storage_directory = ''
-        tc = self.query_lims(TISSUECYTE_QRY.format(self.get_specimen_id_from_labtracks_id(int(mouse_id))))
-        for row in tc:
-            d = dict(row)
-            if d['alignment3d_id'] != 'None':
-                storage_directory = d['storage_directory']
-
-        print(storage_directory)
-        return storage_directory
-
-    def get_specimen_id_from_labtracks_id(self, labtracks_id):
-        SPECIMEN_QRY = '''
-            SELECT *
-            FROM specimens sp
-            WHERE sp.external_specimen_name=cast({} as character varying)
-        '''
-
-        mouse_info = self.query_lims(SPECIMEN_QRY.format(int(labtracks_id)))
-        return mouse_info[0]['id']
 
     # reads from the storage directory to display the 25 micron volume
     def loadVolume(self):
@@ -778,10 +740,10 @@ class TissuecyteAppTemp(QWidget):
         self.dir25 = os.path.join(self.workingDirectory, '25_micron')
         if not os.path.exists(self.dir25):
             os.mkdir(os.path.join(self.dir25))
-            self.current_directory = '/' + self.get_tc_info(self.mouseID)
+            self.current_directory = '/' + get_tc_info(self.mouseID) # get storage directory
             self.resample_dir = os.path.join(self.current_directory, 'local_alignment')
             zip_file = os.path.join(self.resample_dir, 'resampled_images.zip')
-            shutil.copy2(zip_file, self.dir25)
+            shutil.copy2(zip_file, self.dir25) # copy to network drive
         
             resampled_images = glob(os.path.join(self.dir25,  'resampled_*.mhd'), recursive=True)
             if len(resampled_images) == 0:

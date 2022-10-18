@@ -36,7 +36,7 @@ def get_points_line(nonzero_points, warped_dict, all_dict):
 
 # cluster based on number of annotations per probe
 def cluster_annotations(k, nonzero_points, warped_dict, all_dict):
-    print('K', k)
+    #print('K', k)
     kmeans = KMeans(n_clusters=k, random_state=0)
     labels = kmeans.fit_predict(nonzero_points)
     print(labels)
@@ -87,7 +87,7 @@ def warp_volume_line(im, annotations, field, reference, probe, volume_dir, all_p
     nonzero_points = np.argwhere(arr > 0)
     num_annotations = len(nonzero_points)
     probe_column = [probe for i in range(num_annotations)]
-    print(nonzero_points)
+    #print(nonzero_points)
 
     #cluster_annotations(num_annotations, nonzero_points, warped_points, all_points)
     get_points_line(nonzero_points, warped_points, all_points)
