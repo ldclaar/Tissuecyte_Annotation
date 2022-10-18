@@ -68,4 +68,4 @@ The app may take several mintues to load, and once it has loaded, the following 
   * The warped points will be saved to following location
     `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/probe_annotations_mouseID_warped.csv`
   * In addition, each of the probes annotated will have a CSV file in the following location
-    `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_probe_annotations_mouseID_warped_line.csv`
+    `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_probe_annotations_mouseID_warped.csv`
