@@ -118,7 +118,7 @@ def warp_volume(im, annotations, field, reference, probe, volume_dir, all_points
         all_points['probe_name'].append(probe)
 
     df_probe = pd.DataFrame(warped_points)
-    df_probe.to_csv(os.path.join(volume_dir, '{}_annotations_{}_warped_line.csv'.format(probe_file_name, mouse_id)))
+    df_probe.to_csv(os.path.join(volume_dir, '{}_annotations_{}_warped.csv'.format(probe_file_name, mouse_id)))
 
 # warps the points annotated based on the probe
 def warp_points(output_dir, mouse_id, annotations, field, reference, progress):
