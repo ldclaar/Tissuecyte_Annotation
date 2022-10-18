@@ -741,8 +741,6 @@ class TissuecyteAppTemp(QWidget):
         return result
 
     # gets the tissuecyte info for the mouse id
-    # ssh into cluster using credentials given
-    # runs resampling and outputs to directory
     def get_tc_info(self, mouse_id):
         TISSUECYTE_QRY = '''
             SELECT *
@@ -765,13 +763,14 @@ class TissuecyteAppTemp(QWidget):
         mouse_info = self.query_lims(SPECIMEN_QRY.format(int(labtracks_id)))
         return mouse_info[0]['id']
 
+    # reads from the storage directory to display the 25 micron volume
     def loadVolume(self):
         ### Unzip resampled images, unless already done ###
-        self.current_directory = get_tc_info(self.mouseID)
+        self.current_directory = self.get_tc_info(self.mouseID)
         resampled_images = glob(os.path.join(self.current_directory,  'resampled_*.mhd'), recursive=True)
         if len(resampled_images) == 0:
             print('Extracting resampled images...')
-            with ZipFile(fname, 'r') as zipObj:
+            with ZipFile('mhd', 'r') as zipObj:
                 zipObj.extractall(path=self.current_directory)
 
         print('Loading resampled images...')
