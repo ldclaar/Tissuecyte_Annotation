@@ -1,6 +1,12 @@
 README.md
 setup.cfg
 setup.py
+Software/__init__.py
+Software/annotation_app_pyqtgraph_10.py
+Software/annotation_app_pyqtgraph_temp.py
+Software/resample_images.py
+Software/view_annotation_trajectories_vis.py
+Software/warp_image.py
 tissuecyte_annotation.egg-info/PKG-INFO
 tissuecyte_annotation.egg-info/SOURCES.txt
 tissuecyte_annotation.egg-info/dependency_links.txt

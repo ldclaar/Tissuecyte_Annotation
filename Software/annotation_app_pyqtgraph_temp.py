@@ -24,6 +24,7 @@ from glob import glob
 import pandas as pd
 import pathlib
 from psycopg2 import connect, extras
+import shutil
 
 # constants used by app
 DEFAULT_SLICE = 181
@@ -43,6 +44,8 @@ class TissuecyteAppTemp(QWidget):
         self.width = int(456*SCALING_FACTOR) #default = coronal view
         self.height = int(320*SCALING_FACTOR)
         self.mouseID = mouse_id
+        self.dir = '//allen/programs/mindscope/workgroups/np-behavior/tissuecyte'
+        self.workingDirectory = pathlib.Path('{}/{}'.format(self.dir, self.mouseID))
         # initialize UI
         self.initUI()
         self.loadData(annotations)
@@ -737,7 +740,7 @@ class TissuecyteAppTemp(QWidget):
         )
         cursor.execute(query_string)
         result = cursor.fetchall()
-    
+
         return result
 
     # gets the tissuecyte info for the mouse id
@@ -748,9 +751,14 @@ class TissuecyteAppTemp(QWidget):
             WHERE im.specimen_id = {}
         '''
 
-        tc = dict(self.query_lims(TISSUECYTE_QRY.format(self.get_specimen_id_from_labtracks_id(int(mouse_id)))))
-        storage_directory = tc['storage_directory']
+        storage_directory = ''
+        tc = self.query_lims(TISSUECYTE_QRY.format(self.get_specimen_id_from_labtracks_id(int(mouse_id))))
+        for row in tc:
+            d = dict(row)
+            if d['alignment3d_id'] != 'None':
+                storage_directory = d['storage_directory']
 
+        print(storage_directory)
         return storage_directory
 
     def get_specimen_id_from_labtracks_id(self, labtracks_id):
@@ -766,19 +774,24 @@ class TissuecyteAppTemp(QWidget):
     # reads from the storage directory to display the 25 micron volume
     def loadVolume(self):
         ### Unzip resampled images, unless already done ###
-        self.current_directory = self.get_tc_info(self.mouseID)
-        resampled_images = glob(os.path.join(self.current_directory,  'resampled_*.mhd'), recursive=True)
-        if len(resampled_images) == 0:
-            print('Extracting resampled images...')
-            with ZipFile('mhd', 'r') as zipObj:
-                zipObj.extractall(path=self.current_directory)
-
-        print('Loading resampled images...')
+        print(self.mouseID)
+        self.dir25 = os.path.join(self.workingDirectory, '25_micron')
+        if not os.path.exists(self.dir25):
+            os.mkdir(os.path.join(self.dir25))
+            self.current_directory = '/' + self.get_tc_info(self.mouseID)
+            self.resample_dir = os.path.join(self.current_directory, 'local_alignment')
+            zip_file = os.path.join(self.resample_dir, 'resampled_images.zip')
+            shutil.copy2(zip_file, self.dir25)
+        
+            resampled_images = glob(os.path.join(self.dir25,  'resampled_*.mhd'), recursive=True)
+            if len(resampled_images) == 0:
+                print('Extracting resampled images...')
+                with ZipFile(pathlib.Path(os.path.join(self.dir25, 'resampled_images.zip')), 'r') as zipObj:
+                    zipObj.extractall(path=self.dir25)
+           
         intensity_arrays = {}
-
-        #self.dir = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/field_reference')
         for imcolor in ['red', 'green', 'blue']:
-            resamp_image = sitk.ReadImage(os.path.join(self.current_directory, 'resampled_' + imcolor + '.mhd'))
+            resamp_image = sitk.ReadImage(os.path.join(self.dir25, 'resampled_{}.mhd'.format(imcolor)))
             intensity_arrays[imcolor] = sitk.GetArrayFromImage(resamp_image).T
 
         self.int_arrays = intensity_arrays

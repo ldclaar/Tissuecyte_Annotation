@@ -25,7 +25,7 @@ from glob import glob
 import pandas as pd
 import argparse
 import pathlib
-from warp_image import warp_points
+from warp_image import warp_points, warp_execute
 from annotation_app_pyqtgraph_temp import TissuecyteAppTemp
 
 # constants used by app
