@@ -73,3 +73,5 @@ The app may take several mintues to load, and once it has loaded, the following 
 ### Volume Alignment
   * To align the channels to the probe, run the following command: `python volume_alignment.py --mouseID <mouseID>`
   * Ignore the initial popup screen, and wait for some time before the app opens and the following screen should be shown below
+  
+  ![image](https://github.com/arjunsridhar12345/Tissuecyte_Annotation/blob/main/images/alignment_initial.png)
