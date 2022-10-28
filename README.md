@@ -75,3 +75,5 @@ The app may take several mintues to load, and once it has loaded, the following 
   * Ignore the initial popup screen, and wait for some time before the app opens and the following screen should be shown below
   
   ![image](https://github.com/arjunsridhar12345/Tissuecyte_Annotation/blob/main/images/alignment_initial.png)
+  
+  * Select the desired probe, and then hit the view probe region button. An example is shown below where Probe C1 has been selected 
