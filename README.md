@@ -69,3 +69,7 @@ The app may take several mintues to load, and once it has loaded, the following 
     `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/probe_annotations_mouseID_warped.csv`
   * In addition, each of the probes annotated will have a CSV file in the following location
     `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_annotations_mouseID_warped.csv`
+
+### Volume Alignment
+  * To align the channels to the probe, run the following command: `python volume_alignment.py --mouseID <mouseID>`
+  * Ignore the initial popup screen, and wait for some time before the app opens and the following screen should be shown below
