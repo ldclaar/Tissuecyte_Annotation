@@ -71,10 +71,5 @@ The app may take several mintues to load, and once it has loaded, the following 
   * In addition, each of the probes annotated will have a CSV file in the following location
     `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_annotations_mouseID_warped.csv`
 
-### Volume Alignment
-  * To align the channels to the probe, run the following command: `python volume_alignment.py --mouseID <mouseID>`
-  * Ignore the initial popup screen, and wait for some time before the app opens and the following screen should be shown below
-  
-  ![image](https://github.com/arjunsridhar12345/Tissuecyte_Annotation/blob/main/images/alignment_initial.png)
-  
-  * Select the desired probe, and then hit the view probe region button. An example is shown below where Probe C1 has been selected 
+### Reassignment App
+This app allows for probes to be reassigned to other probes along with deleting stray annotations. Run the command `python view_annotation_trajectories.py -- mouseID <mouseID> and then wait for some time before seeing a similar display as below
