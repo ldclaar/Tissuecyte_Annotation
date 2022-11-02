@@ -20,7 +20,6 @@ import pathlib
 import SimpleITK as sitk
 from sklearn.cluster import KMeans
 import visvis as vis
-from warp_image import warp_lines
 #class pandasModel(QAbstractTableModel):
 
 parser = argparse.ArgumentParser()
@@ -56,12 +55,12 @@ class AnnotationProbesViewer(QWidget):
         self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
         self.updatedAnnotations = self.annotations.copy(deep=True)
 
-        self.rgb = {'A1': '(255, 0, 0)', 'A2': '(139, 0, 0)', 'A3': '(205, 92, 92)', 'A4': '(255, 69, 0)', 'A5': '(219, 112, 147)',
-                    'B1': '(0, 0, 255)', 'B2': '(0, 0, 139)', 'B3': '( 0, 191, 255)', 'B4': '(30, 144, 255)', 'B5': '( 70, 130, 180)',
-                    'C1': '(255, 192, 203)', 'C2': '(255, 20, 147)', 'C3': '(255, 105, 180)', 'C4': '(255, 0, 255)', 'C5': '(139, 0, 139)',
-                    'D1': '(255, 255, 0)', 'D2': '(255, 255, 224)', 'D3': '(255, 215, 0)', 'D4': '(218, 165, 32)', 'D5': '(154, 205, 50)',
-                    'E1': '( 0, 255, 255)', 'E2': '( 0, 139, 139)', 'E3': '(224, 255, 255)', 'E4': '(64, 224, 208)', 'E5': '(0, 128, 128)',
-                    'F1': '( 0, 128, 0)', 'F2': '(0, 100, 0)', 'F3': '(144, 238, 144)', 'F4': '(124, 252, 0)', 'F5': '(143, 188, 143)'}
+        self.rgb = {'A1': '(255, 228, 225)', 'A2': '(255, 0, 0)', 'A3': '(240, 128, 128)', 'A4': '(139, 0, 0)',
+                    'B1': '(173, 216, 230)', 'B2': '(0, 0, 255)', 'B3': '(70, 130, 180)', 'B4': '(0, 0, 139)',
+                    'C1': '(255, 192, 203)', 'C2': '(255, 0, 255)', 'C3': '(218, 112, 214)', 'C4': '(255, 20, 147)',
+                    'D1': '(210, 180, 140)', 'D2': '(255, 128, 0)', 'D3': '(255, 215, 0)', 'D4': '(218, 165, 32)',
+                    'E1': '( 0, 255, 255)', 'E2': '(95, 158, 160)', 'E3': '(127, 255, 212)', 'E4': '(72, 209, 204)',
+                    'F1': '(144, 238, 144)', 'F2': '(0, 128, 0)', 'F3': '(128, 128, 0)', 'F4': '(107, 142, 35)'}
 
         self.probe_lines = {}
         # Make figure using "self" as a parent
@@ -71,7 +70,7 @@ class AnnotationProbesViewer(QWidget):
         #self.fig.bgcolor = 'k'
         #self.panel = QWidget(self)
         self.create_main_frame()
-
+        self.ax = vis.subplot(111)
         # layouts for the display
         self.labelLayout = QVBoxLayout()
         self.labelLayout.addWidget(self.main_frame)
@@ -122,14 +121,21 @@ class AnnotationProbesViewer(QWidget):
         self.trialNew.addItem('2')
         self.trialNew.addItem('3')
         self.trialNew.addItem('4')
-        self.trialNew.addItem('5')
         self.labelNew.addWidget(self.trialNew)
+
+        self.switchButton = QPushButton('Switch Probes')
+        self.switchButton.clicked.connect(self.switchProbes)
+
 
         self.updateButton = QPushButton('Reassign Probe')
         self.updateButton.clicked.connect(self.updateProbe)
         self.labelLayout.addLayout(self.labelOld)
         self.labelLayout.addLayout(self.labelNew)
-        self.labelLayout.addWidget(self.updateButton)
+
+        self.reassignSwitchLayout = QHBoxLayout()
+        self.reassignSwitchLayout.addWidget(self.updateButton)
+        self.reassignSwitchLayout.addWidget(self.switchButton)
+        #self.labelLayout.addWidget(self.updateButton)
 
         self.checkLabel = QLabel('Select probes to show/hide')
         self.checkLayout = QHBoxLayout()
@@ -152,8 +158,8 @@ class AnnotationProbesViewer(QWidget):
         self.toggleButton = QPushButton('Update Probe Trajectory Display')
         self.toggleButton.clicked.connect(self.updateDisplay)
 
-        self.warpButton = QPushButton('Warp Probes to CCF')
-        self.warpButton.clicked.connect(self.warpLines)
+        self.saveButton = QPushButton('Save Updated Probes')
+        self.saveButton.clicked.connect(self.saveUpdatedProbes)
 
 
         """
@@ -202,11 +208,12 @@ class AnnotationProbesViewer(QWidget):
         self.toggleButton.clicked.connect(self.updateDisplay)
         self.checkLayout.addWidget(self.toggleButton)
         """
+        self.labelLayout.addLayout(self.reassignSwitchLayout)
         self.labelLayout.addWidget(self.checkLabel)
         self.labelLayout.addLayout(self.checkLayout)
         #self.labelLayout.addWidget(self.toggleButton)
         self.hButtonLayout.addWidget(self.toggleButton)
-        self.hButtonLayout.addWidget(self.warpButton)
+        self.hButtonLayout.addWidget(self.saveButton)
         self.labelLayout.addLayout(self.hButtonLayout)
         self.labelLayout.setAlignment(QtCore.Qt.AlignBottom)
 
@@ -222,11 +229,33 @@ class AnnotationProbesViewer(QWidget):
         self.mainLayout.addLayout(self.scatterLayout)
         self.setLayout(self.mainLayout)
         self.showMaximized()
-    
-    def warpLines(self):
-        outputdir = str(self.workingDirectory) + '/lines'
-        outputdir = pathlib.Path(outputdir)
-        warp_lines(outputdir, self.mouseID, self.probe_lines, self.field, self.reference)
+
+    def switchProbes(self):
+        old_probe = 'Probe' + ' ' + self.probeOld.currentText() + self.trialOld.currentText()
+        new_probe = 'Probe' + ' ' + self.probeNew.currentText() + self.trialNew.currentText()
+
+        self.probeOld.setCurrentText('Current Probe')
+        self.trialOld.setCurrentText('Current Number')
+        self.probeNew.setCurrentText('New Probe')
+        self.trialNew.setCurrentText('New Number')
+
+        self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == new_probe, 'probe_name'] = 'temp'
+        self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == old_probe, 'probe_name'] = new_probe
+        self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == 'temp', 'probe_name'] = old_probe
+
+        self.update_plot(self.updatedAnnotations)
+        self.update_plot_2d(self.updatedAnnotations)
+    def saveUpdatedProbes(self):
+        if not os.path.exists(os.path.join(self.workingDirectory, 'reassigned')):
+            os.mkdir(os.path.join(self.workingDirectory, 'reassigned'))
+
+        self.updatedAnnotations.to_csv(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID)))
+
+        probes = self.updatedAnnotations['probe_name'].unqiue()
+
+        for probe in probes:
+            df_probe = self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == probe]
+            df_probe.to_csv(os.path.join(self.workingDirectory, 'reassigned', '{}_annotations_{}_reassigned.csv'.format(probe, self.mouseID)))
 
     # populates the drop down, used when probes are updated
     def populateDropDown(self, qProbe, qTrial):
@@ -316,9 +345,9 @@ class AnnotationProbesViewer(QWidget):
         min_y_index = np.argmin(y_click_data) # closest y index to click
         print(min_x_index, min_y_index)
         print(x_click_data[min_x_index], y_click_data[min_y_index])
-        if y_click_data[min_y_index] <= 5 and x_click_data[min_x_index] <= 5 and min_y_index == min_x_index:
+        if y_click_data[min_y_index] <= 2 and x_click_data[min_x_index] <= 2:
               print(min_x_index, min_y_index)
-              self.updatedAnnotations.drop([min_y_index], inplace=True)
+              self.updatedAnnotations.drop([min_x_index], inplace=True)
               self.updatedAnnotations.reset_index(drop=True, inplace=True)
               self.update_plot(self.updatedAnnotations) 
               self.update_plot_2d(self.updatedAnnotations)
@@ -354,12 +383,12 @@ class AnnotationProbesViewer(QWidget):
     def update_plot_2d(self, probe_annotations):
         self.axes.clear()
 
-        self.colors = {'A1': 'red', 'A2': 'dark red', 'A3': 'indian red', 'A4': 'orange red', 'A5': 'pale violet red',
-                       'B1': 'blue', 'B2': 'dark blue', 'B3': 'deep sky blue', 'B4': 'dodger blue', 'B5': 'steel blue',
-                       'C1': 'pink', 'C2': 'deep pink', 'C3': 'hot pink', 'C4': 'magenta', 'C5': 'dark magenta',
-                       'D1': 'yellow', 'D2': 'light yellow', 'D3': 'gold', 'D4': 'goldenrod', 'D5': 'yellow green',
-                       'E1': 'cyan', 'E2': 'dark cyan', 'E3': 'light cyan', 'E4': 'turquoise', 'E5': 'teal',
-                       'F1': 'green', 'F2': 'dark green', 'F3': 'light green', 'F4': 'lawn green', 'F5': 'dark sea green'}
+        self.colors = {'A1': 'mistyrose', 'A2': 'red', 'A3': 'light coral', 'A4': 'dark red',
+                       'B1': 'light blue', 'B2': 'blue', 'B3': 'steel blue', 'B4': 'dark blue',
+                       'C1': 'pink', 'C2': 'magenta', 'C3': 'orchid', 'C4': 'deep pink',
+                       'D1': 'tan', 'D2': 'orange', 'D3': 'gold', 'D4': 'goldenrod',
+                       'E1': 'cyan', 'E2': 'cadet blue', 'E3': 'aquamarine', 'E4': 'medium turquoise',
+                       'F1': 'light green', 'F2': 'green', 'F3': 'olive', 'F4': 'olive drab'}
 
 
         probes = probe_annotations['probe_name'].unique()
@@ -378,34 +407,48 @@ class AnnotationProbesViewer(QWidget):
         
             z = probe_annotations[probe_annotations.probe_name == probe_trial].AP / 2.5
 
+            # get trajectory
+            if len(z) > 0:
+                data = np.vstack((z,y,x)).T
+                datamean = data.mean(axis=0)
+                D = data - datamean
+                m1 = np.min(D[:,1]) * 2
+                m2 = np.max(D[:,1]) * 2
+                uu,dd,vv = np.linalg.svd(D)
+
+                linepts = vv[0] * np.mgrid[-200:200:0.7][:,np.newaxis]
+                linepts += datamean
+            
+                if linepts[-1,1] - linepts[0,1] < 0:
+                    linepts = np.flipud(linepts)
+
             if probe[0] in self.probe_checks and 'orig_Probe' not in probe_trial:
                 if not self.probe_checks[probe[0]].isChecked(): # display probe
                     self.axes.scatter(x,y,c=self.colors[probe].replace(' ', ''), s=15, alpha=0.95)
-                        #self.axes.plot(linepts[:,0],linepts[:,2],-linepts[:,1],color=self.colors[probe].replace(' ', ''), alpha=0.5, label=probe_trial)
+                    self.axes.plot(linepts[:,2],linepts[:,1],color=self.colors[probe].replace(' ', ''), alpha=0.5, label=probe_trial)
             else: # make probe light grey, needs to be reassigned later
                 self.axes.scatter(x,y,c='black', s=5, alpha=0.95)
-                #self.axes.plot(linepts[:,0],linepts[:,2],-linepts[:,1],color='white', alpha=0.5, label=probe_trial)
+                self.axes.plot(linepts[:,2],linepts[:,1],color='white', alpha=0.5, label=probe_trial)
         
         #self.axes.legend(loc='upper left')
         #self.axes.set_xlabel('ML')
         #self.axes.set_ylabel('DV')
         self.axes.set_title('2D View of Probe Annotations')
         #self.axes.set_zlabel('AP')
-        self.axes.imshow(self.volume[322, :, :], cmap='gray')
+        self.axes.imshow(self.volume[:, :, :].sum(axis=0), cmap='gray')
         #self.axes.plot_trisurf(self.volume[:319, 0], self.volume[:, 1], self.volume[:, 2])
         self.canvas.draw()
         plt.show()
 
     # updates the display
     def update_plot(self, probe_annotations):
-        vis.clf()
+        #vis.clf()
         #self.axes.clear()
-        self.ax = vis.subplot(111)
         self.ax.bgcolor='k'
         self.ax.axis.axisColor = 'w'
-        #self.ax.cla()
+        vis.cla()
 
-        vis.volshow3(self.volume * 2.5)
+        vis.volshow3(self.volume)
         probes = probe_annotations['probe_name'].unique()
         #self.axes.contourf(self.reference[:, 0], self.reference[:, 1], self.image[:, 2])
         #self.axes.set_xticklabels([])
@@ -446,13 +489,13 @@ class AnnotationProbesViewer(QWidget):
                         color = tuple(t / 255 for t in col)
                         #vis.plot(x, y, z, mc=color, mw=5, ms='s', lw=0, mec=color, axes=self.ax)
                         #print(l.points)
-                        vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color)
+                        vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color, axes=self.ax)
                         legend.append(probe_trial)
                 else: # make probe light grey, needs to be reassigned later
                     legend.append(probe_trial)
                     color_grey = (0, 0, 0)
                     color = tuple(t / 255 for t in color_grey)
-                    vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color_grey)
+                    vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color_grey, axes=self.ax)
         
                 self.probe_lines[probe_trial] = linepts
 

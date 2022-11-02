@@ -71,6 +71,7 @@ class TissuecyteAppTemp(QWidget):
         self.image.setObjectName('image')
         self.image.setImage(im8.transpose())
 
+        """
         self.colors = {'A1': 'red', 'A2': 'dark red', 'A3': 'indian red', 'A4': 'orange red', 'A5': 'pale violet red',
                        'B1': 'blue', 'B2': 'dark blue', 'B3': 'deep sky blue', 'B4': 'dodger blue', 'B5': 'steel blue',
                        'C1': 'pink', 'C2': 'deep pink', 'C3': 'hot pink', 'C4': 'magenta', 'C5': 'dark magenta',
@@ -84,6 +85,21 @@ class TissuecyteAppTemp(QWidget):
                     'D1': '(255, 255, 0)', 'D2': '(255, 255, 224)', 'D3': '(255, 215, 0)', 'D4': '(218, 165, 32)', 'D5': '(154, 205, 50)',
                     'E1': '( 0, 255, 255)', 'E2': '( 0, 139, 139)', 'E3': '(224, 255, 255)', 'E4': '(64, 224, 208)', 'E5': '(0, 128, 128)',
                     'F1': '( 0, 128, 0)', 'F2': '(0, 100, 0)', 'F3': '(144, 238, 144)', 'F4': '(124, 252, 0)', 'F5': '(143, 188, 143)'}
+        """
+
+        self.colors = {'A1': 'mistyrose', 'A2': 'red', 'A3': 'light coral', 'A4': 'dark red',
+                       'B1': 'light blue', 'B2': 'blue', 'B3': 'steel blue', 'B4': 'dark blue',
+                       'C1': 'pink', 'C2': 'magenta', 'C3': 'orchid', 'C4': 'deep pink',
+                       'D1': 'tan', 'D2': 'orange', 'D3': 'gold', 'D4': 'goldenrod',
+                       'E1': 'cyan', 'E2': 'cadet blue', 'E3': 'aquamarine', 'E4': 'medium turquoise',
+                       'F1': 'light green', 'F2': 'green', 'F3': 'olive', 'F4': 'olive drab'}
+
+        self.rgb = {'A1': '(255, 228, 225)', 'A2': '(255, 0, 0)', 'A3': '(240, 128, 128)', 'A4': '(139, 0, 0)',
+                    'B1': '(173, 216, 230)', 'B2': '(0, 0, 255)', 'B3': '(70, 130, 180)', 'B4': '(0, 0, 139)',
+                    'C1': '(255, 192, 203)', 'C2': '(255, 0, 255)', 'C3': '(218, 112, 214)', 'C4': '(255, 20, 147)',
+                    'D1': '(210, 180, 140)', 'D2': '(255, 128, 0)', 'D3': '(255, 215, 0)', 'D4': '(218, 165, 32)',
+                    'E1': '( 0, 255, 255)', 'E2': '(95, 158, 160)', 'E3': '(127, 255, 212)', 'E4': '(72, 209, 204)',
+                    'F1': '(144, 238, 144)', 'F2': '(0, 128, 0)', 'F3': '(128, 128, 0)', 'F4': '(107, 142, 35)'}
 
         self.mainLayout.addWidget(self.image)
         # add mouse click event
@@ -240,6 +256,12 @@ class TissuecyteAppTemp(QWidget):
         self.resetSlidersButton.setToolTip('Reset Slider')
         self.resetSlidersButton.clicked.connect(self.resetSliders)
 
+        # rest zoom button
+        self.resetZoomButton = QPushButton('Reset Zoom', self)
+        self.resetZoomButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.resetZoomButton.setToolTip('Reset Zoom')
+        self.resetZoomButton.clicked.connect(self.resetZoom)
+
         # layout for check boxes
         self.checkLayout = QFormLayout()
         self.checkLayout.addWidget(self.redCheck)
@@ -288,6 +310,7 @@ class TissuecyteAppTemp(QWidget):
 
         # add to right layout
         self.rightLayout.addLayout(self.checkSliderLayout)
+        self.rightLayout.addLayout(self.resetZoomButton)
         
         # add to bottom layout
         self.bottomLayout.addLayout(self.leftLayout)
@@ -391,6 +414,9 @@ class TissuecyteAppTemp(QWidget):
         self.blueSlider.setValue((DEFAULT_COLOR_VALUES[2][0], DEFAULT_COLOR_VALUES[2][1]))
         
         self.refreshImage(change_view=True)
+
+    def resetZoom(self):
+        self.refreshImage(value_draw=True, autoRange=True)
 
     # clears the annotations, does not remove them from csv
     def hidePoints(self):
