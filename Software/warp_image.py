@@ -65,7 +65,7 @@ def warp_volume(im, annotations, field, reference, probe, volume_dir, all_points
     df_probe.to_csv(os.path.join(volume_dir, '{}_annotations_{}_warped.csv'.format(probe_file_name, mouse_id)))
 
 # warps the channels after the alignment
-def warp_channels(output_dir, annotations, field, reference, probe):
+def warp_channels(output_dir, annotations, field, reference, probe, mouse_id, channels):
     final_dict = {'AP': [], 'DV': [], 'ML': [], 'probe_name': []}
     arr = np.zeros((528, 320, 456))
 
@@ -92,9 +92,8 @@ def warp_channels(output_dir, annotations, field, reference, probe):
     df_final = pd.DataFrame(final_dict)
     df_final.sort_values(['AP', 'DV', 'ML'], inplace=True)
     df_final.reset_index()
-    channels = [i for i in range(len(annotations.index), 0, -1)]
-    df_final['channel'] = channels
-    df_final.to_csv(os.path.join(output_dir, 'dummy_data', '_alignment384.csv'), index=False)
+    df_final['channel'] = channels[::-1]
+    df_final.to_csv(os.path.join(output_dir, '{}_channels_{}_warped.csv'.format(probe, mouse_id)), index=False)
 
 # warps the points annotated based on the probe
 def warp_points(output_dir, mouse_id, annotations, field, reference, progress):

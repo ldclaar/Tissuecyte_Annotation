@@ -132,13 +132,13 @@ class VolumeAlignment(QWidget):
         self.oldChannels = [] # stack for undoing lines
 
         #self.unit_dense = np.random.randint(384, size=384)
-        self.frequencyCounts = self.unitDense['peak_channel'].value_counts().sort_index(ascending=False).to_numpy()
+        self.frequencyCounts = self.unitDense['peak_channel'].value_counts().sort_index().reset_index().to_numpy()
         print(self.frequencyCounts)
         #x = np.linspace(-10, 100, num=384)
-        self.channelsOriginal = [[self.frequencyCounts[i], i] for i in range(len(self.frequencyCounts))]
+        self.channelsOriginal = [[self.frequencyCounts[i, 1], self.frequencyCounts[i, 0]] for i in range(len(self.frequencyCounts))]
         #self.densityChannels = [[50, int(i * 3.84)] for i in range(384)]
-        self.adj = [[i, i + 1] for i in range(len(self.frequencyCounts) + 1)]
-        print(len(self.adj))
+        self.adj = [[i, i + 1] for i in range(len(self.channelsOriginal) - 1)]
+
         # metric plot
         self.channelsPlot = Graph()
         #self.denseChannelsPlot = Graph()
@@ -199,7 +199,7 @@ class VolumeAlignment(QWidget):
     # when a new probe is displayed
     def resetPlot(self):
         self.channels = self.channelsOriginal
-        self.adj = [[i, i + 1] for i in range(383)]
+        self.adj = [[i, i + 1] for i in range(len(self.channelsOriginal) - 1)]
         self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
 
         view = self.image.getView()
@@ -218,11 +218,11 @@ class VolumeAlignment(QWidget):
 
     # warps the 384 channels to the ccf
     def warpChannels(self):
-        channel_dict = {'AP': [], 'DV': [], 'ML': [], 'channel':[], 'probe_name': []}
+        channel_dict = {'AP': [], 'DV': [], 'ML': [], 'probe_name': []}
+        channels = [p[1] for p in self.channelsOriginal]
 
         for i in range(len(self.channels)):
-            channel = self.channels[i]
-            print(channel)
+            channel = self.channelsOriginal[i]
             y_coord = channel[1]
 
             coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
@@ -230,7 +230,6 @@ class VolumeAlignment(QWidget):
             channel_dict['AP'].append(coord[0])
             channel_dict['DV'].append(coord[1])
             channel_dict['ML'].append(coord[2])
-            channel_dict['channel'].append(i)
 
 
         probe_name = self.probeDropDown.currentText()
@@ -238,7 +237,7 @@ class VolumeAlignment(QWidget):
         channel_dict['probe_name'] = probe
         df_channel = pd.DataFrame(channel_dict)
         
-        warp_channels(self.storageDirectory, df_channel, self.field, self.reference, self.probeDropDown.currentText())
+        warp_channels(self.storageDirectory, df_channel, self.field, self.reference, self.probeDropDown.currentText(), self.mouseID, channels)
 
     # displays the region of interest surrounding the probe track
     def displayRegion(self):
@@ -288,7 +287,7 @@ class VolumeAlignment(QWidget):
                 self.replaceValues(lp, points_between)
                 #print(len(self.channels))
 
-            self.adj = [[i, i + 1] for i in range(383)]
+            self.adj = [[i, i + 1] for i in range(len(self.channelsOriginal) - 1)]
             self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
 
     def onclickProbe(self, plot, points):
@@ -347,7 +346,7 @@ class VolumeAlignment(QWidget):
                                 newPoints.append([p[0], p[1]])
 
             self.channels = newPoints
-            self.adj = [[i, i + 1] for i in range(383)]
+            self.adj = [[i, i + 1] for i in range(len(self.channelsOriginal) - 1)]
             if len(self.pointsAdded) == 0:
                 self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
         
@@ -357,6 +356,7 @@ class VolumeAlignment(QWidget):
             h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
             self.lineItems.append(h_line)
         else:
+            pts = [[t, line_point[1]] for t in range(int(self.channelsPlot.scatterPoint[0]), int(line_point[0]))]
             diff = 0
             #h_line = pg.PlotCurveItem([self.channelsPlot.scatterPoint[0], line_point[0]], [self.channelsPlot.scatterPoint[1], line_point[1]], pen=QtGui.QPen(QColor('yellow')),
                                         #brush=QtGui.QBrush(QColor('yellow')))
@@ -401,6 +401,7 @@ class VolumeAlignment(QWidget):
         intensity_values = np.zeros((linepts.shape[0],400))
         self.coords = {}
         self.linepts = linepts
+        print(self.linepts.shape)
         print(linepts[0])
         for j in range(linepts.shape[0]):
             if j < linepts.shape[0]:
@@ -419,10 +420,10 @@ class VolumeAlignment(QWidget):
         rot = np.rot90(self.volArray)
         flip = np.flipud(rot)
       
-        self.image.setImage(flip[:, 500:j], levels=(0, 255), autoRange=False)
+        self.image.setImage(flip[:, 400:j], levels=(0, 255), autoRange=False)
 
         view = self.image.getView()
-        self.points = [[200, t] for t in range(j - 500)]
+        self.points = [[200, t] for t in range(j)]
         self.plItem = pg.ScatterPlotItem(pos=self.points, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')))
         #self.plItem.setClickable(True)
         self.plItem.sigClicked.connect(self.onclickProbe)
