@@ -209,8 +209,15 @@ class TissuecyteApp10(QWidget):
         #self.loadButton.setToolTip('Load volume data')
         #self.loadButton.clicked.connect(self.loadData)
 
+        # delete all button
+        self.deleteAllButton = QPushButton('Delete All Points For Selected Probe', self)
+        self.deleteAllButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.deleteAllButton.setToolTip('Delete All Probe data')
+        self.deleteAllButton.clicked.connect(self.deleteAllPoints)
+        self.deleteAllButton.setStyleSheet("color: red;font: bold 12px")
+
         # delete button
-        self.deleteButton = QPushButton('Delete Points For Selected Probe', self)
+        self.deleteButton = QPushButton('Delete Probe Points On Current Slice', self)
         self.deleteButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.deleteButton.setToolTip('Delete Probe data')
         self.deleteButton.clicked.connect(self.deletePoint)
@@ -253,8 +260,9 @@ class TissuecyteApp10(QWidget):
         self.buttonsLayout.addWidget(self.hideButton, 3, 1)
         self.buttonsLayout.addWidget(self.showButton, 3, 2)
         self.buttonsLayout.addWidget(self.pointLockButton, 3, 3)
-        self.buttonsLayout.addWidget(self.deleteButton, 4, 1)
-        self.buttonsLayout.addWidget(self.undoButton, 4, 2)
+        self.buttonsLayout.addWidget(self.deleteAllButton, 4, 1)
+        self.buttonsLayout.addWidget(self.deleteButton, 4, 2)
+        self.buttonsLayout.addWidget(self.undoButton, 4, 3)
 
         # add buttons to left layout
         self.leftLayout.addLayout(self.buttonsLayout)
@@ -409,6 +417,22 @@ class TissuecyteApp10(QWidget):
                 self.saveData()
 
                 self.refreshImage(value_draw=True)
+
+    # removes all points for probe across all slices
+    def deleteAllPoints(self):
+        if not self.point_lock:
+            if self.probeName != 'Probe' and self.trial != 'Number':
+                self.selectedProbe = 'Probe' + ' ' + self.probeName +  self.trial
+                message_box = QMessageBox()
+                ret = message_box.question(self,'', "ARE YOU SURE YOU WANT TO DELETE ALL ANNOTATIONS OF %s ACROSS ALL SLICES?" %(self.selectedProbe), message_box.Yes | message_box.No)
+
+                if ret == message_box.Yes:
+                    matching_index = self.annotations[self.annotations.probe_name == self.selectedProbe].index.values
+
+                    if len(matching_index) > 0:
+                        self.annotations = self.annotations.drop(index=matching_index)
+                        self.saveData()
+                        self.refreshImage(value_draw=True)
 
     # removes all points from dataframe/csv for given slice
     def deletePoint(self):

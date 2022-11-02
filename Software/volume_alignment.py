@@ -109,6 +109,8 @@ class VolumeAlignment(QWidget):
         super().__init__()
         self.title = 'Volume Alignment'
         self.mouseID = mouse_id
+        self.unitDense = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.ProbeA-AP/waveform_metrics.csv'))
+
         self.initUI()
     
     def initUI(self):
@@ -129,12 +131,14 @@ class VolumeAlignment(QWidget):
         self.lineItems = []
         self.oldChannels = [] # stack for undoing lines
 
-        self.unit_dense = np.random.randint(384, size=384)
-        x = np.linspace(-10, 100, num=384)
-        self.channelsOriginal = [[x[i], i] for i in range(384)]
+        #self.unit_dense = np.random.randint(384, size=384)
+        self.frequencyCounts = self.unitDense['peak_channel'].value_counts().sort_index(ascending=False).to_numpy()
+        print(self.frequencyCounts)
+        #x = np.linspace(-10, 100, num=384)
+        self.channelsOriginal = [[self.frequencyCounts[i], i] for i in range(len(self.frequencyCounts))]
         #self.densityChannels = [[50, int(i * 3.84)] for i in range(384)]
-        self.adj = [[i, i + 1] for i in range(383)]
-
+        self.adj = [[i, i + 1] for i in range(len(self.frequencyCounts) + 1)]
+        print(len(self.adj))
         # metric plot
         self.channelsPlot = Graph()
         #self.denseChannelsPlot = Graph()

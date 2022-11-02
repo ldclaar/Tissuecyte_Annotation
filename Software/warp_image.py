@@ -84,7 +84,7 @@ def warp_channels(output_dir, annotations, field, reference, probe):
     result_arr = sitk.GetArrayFromImage(result)
     nonzero_points = np.argwhere(result_arr > 0)
 
-    cluster_annotations(384, nonzero_points, final_dict, None)
+    cluster_annotations(len(annotations.index), nonzero_points, final_dict, None)
 
     probe_name = [probe for i in range(len(final_dict['AP']))]
     final_dict['probe_name'] = probe_name
@@ -92,7 +92,7 @@ def warp_channels(output_dir, annotations, field, reference, probe):
     df_final = pd.DataFrame(final_dict)
     df_final.sort_values(['AP', 'DV', 'ML'], inplace=True)
     df_final.reset_index()
-    channels = [i + 1 for i in range(384)]
+    channels = [i for i in range(len(annotations.index), 0, -1)]
     df_final['channel'] = channels
     df_final.to_csv(os.path.join(output_dir, 'dummy_data', '_alignment384.csv'), index=False)
 
