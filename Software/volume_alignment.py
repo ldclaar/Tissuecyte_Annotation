@@ -222,7 +222,7 @@ class VolumeAlignment(QWidget):
         channels = [p[1] for p in self.channelsOriginal]
 
         for i in range(len(self.channels)):
-            channel = self.channelsOriginal[i]
+            channel = self.channels[i]
             y_coord = channel[1]
 
             coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
@@ -360,7 +360,7 @@ class VolumeAlignment(QWidget):
             diff = 0
             #h_line = pg.PlotCurveItem([self.channelsPlot.scatterPoint[0], line_point[0]], [self.channelsPlot.scatterPoint[1], line_point[1]], pen=QtGui.QPen(QColor('yellow')),
                                         #brush=QtGui.QBrush(QColor('yellow')))
-            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')))
+            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
             self.lineItems.append(h_line)
 
         self.pointsAdded.append(line_point[1])
@@ -420,10 +420,10 @@ class VolumeAlignment(QWidget):
         rot = np.rot90(self.volArray)
         flip = np.flipud(rot)
       
-        self.image.setImage(flip[:, 400:j], levels=(0, 255), autoRange=False)
+        self.image.setImage(flip[:, 500:j], levels=(0, 255), autoRange=False)
 
         view = self.image.getView()
-        self.points = [[200, t] for t in range(j)]
+        self.points = [[200, t] for t in range(j - 500)]
         self.plItem = pg.ScatterPlotItem(pos=self.points, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')))
         #self.plItem.setClickable(True)
         self.plItem.sigClicked.connect(self.onclickProbe)

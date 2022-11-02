@@ -19,7 +19,8 @@ if __name__ == '__main__':
     print(df_final)
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.scatter(df_final['ML'] * 0.875, df_final['DV'] * 0.875, s=15 ,alpha=0.95)
+
+    ax.scatter(df_final['ML'] * 0.875, df_final['DV'] * 3.84 * 0.875, s=15 ,alpha=0.95)
 
     ax.imshow(arr.sum(axis=0), cmap='gray')
 
