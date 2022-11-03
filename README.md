@@ -72,11 +72,11 @@ The app may take several mintues to load, and once it has loaded, the following 
     `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_annotations_mouseID_warped.csv`
 
 ### Reassignment App
-This app allows for probes to be reassigned to other probes along with deleting stray annotations. Run the command `python view_annotation_trajectories.py -- mouseID <mouseID>` and then wait for some time before seeing a similar display as below. This app shows the probe trajectories in both a 2D and 3D view
+This app allows for probes to be reassigned to other probes along with deleting stray annotations. Run the command `python view_annotation_trajectories.py -- mouseID <mouseID>` and then wait for some time before seeing a similar display as below. The app shows the probe trajectories in both a 2D and 3D view
 
 ![image](https://github.com/arjunsridhar12345/Tissuecyte_Annotation/blob/main/images/reassignment_app_2.png)
 
-This app has the following main components
+The app has the following main components
   * Show/Hide Probes: To show/hide probes, select the checkboxes for the probes that should be hidden, and then click the Update Probe Trajectory Display. Follow the same steps to show the probes by unchecking the desired probes
   * Switch Probes: To switch two probes, select the current probe and day from the corresponding drop down, and then the new probe and day from the corresponding drop down, and then hit the Switch Probes button 
-  * Reassign Probes: If a probe needs to be assigned to another one, but you are not sure if it needs to be switched, use this function.
+  * Reassign Probes: If a probe needs to be assigned to another one, but you are not sure if it needs to be switched, use this function. For example, if the current probe C1 needs to be reassigned to probe C3, and there is another probe that is C3, using this will change probe C1 to C3, and the original C3 will become the color black and have the label origProbe_C3. This allows for reassigning this probe later on, and it provides some history as to what the probe was orignally
