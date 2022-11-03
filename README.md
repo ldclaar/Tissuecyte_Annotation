@@ -74,7 +74,7 @@ The app may take several mintues to load, and once it has loaded, the following 
 ### Reassignment App
 This app allows for probes to be reassigned to other probes along with deleting stray annotations. Run the command `python view_annotation_trajectories.py -- mouseID <mouseID> and then wait for some time before seeing a similar display as below. This app shows the probe trajectories in both a 2D and 3D view
 
-![image](https://github.com/arjunsridhar12345/Tissuecyte_Annotation/blob/main/images/reassignment_app.png)
+![image](https://github.com/arjunsridhar12345/Tissuecyte_Annotation/blob/main/images/reassignment_app_2.png)
 
 This app has the following main components
   * Show/Hide Probes: To show/hide probes, select the checkboxes for the probes that should be hidden, and then click the Update Probe Trajectory Display. Follow the same steps to show the probes by unchecking the desired probes
