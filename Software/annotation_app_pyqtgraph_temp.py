@@ -310,7 +310,7 @@ class TissuecyteAppTemp(QWidget):
 
         # add to right layout
         self.rightLayout.addLayout(self.checkSliderLayout)
-        self.rightLayout.addLayout(self.resetZoomButton)
+        self.rightLayout.addWidget(self.resetZoomButton)
         
         # add to bottom layout
         self.bottomLayout.addLayout(self.leftLayout)
