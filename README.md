@@ -79,4 +79,4 @@ This app allows for probes to be reassigned to other probes along with deleting 
 This app has the following main components
   * Show/Hide Probes: To show/hide probes, select the checkboxes for the probes that should be hidden, and then click the Update Probe Trajectory Display. Follow the same steps to show the probes by unchecking the desired probes
   * Switch Probes: To switch two probes, select the current probe and day from the corresponding drop down, and then the new probe and day from the corresponding drop down, and then hit the Switch Probes button 
-  * Reassign Probes: If a probe needs to be assigned to another one, but you are not sure if it needs to be switched, use this function. 
+  * Reassign Probes: If a probe needs to be assigned to another one, but you are not sure if it needs to be switched, use this function.
