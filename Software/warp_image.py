@@ -93,7 +93,7 @@ def warp_channels(output_dir, annotations, field, reference, probe, mouse_id, ch
     df_final.sort_values(['AP', 'DV', 'ML'], inplace=True)
     df_final.reset_index()
     df_final['channel'] = channels[::-1]
-    df_final.to_csv(os.path.join(output_dir, '{}_channels_{}_warped.csv'.format(probe, mouse_id)), index=False)
+    df_final.to_csv(os.path.join(output_dir, '{}_channels_{}_warped.csv'.format(probe.replace(' ', '_'), mouse_id)), index=False)
 
 # warps the points annotated based on the probe
 def warp_points(output_dir, mouse_id, annotations, field, reference, progress):
