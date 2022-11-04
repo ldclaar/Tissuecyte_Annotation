@@ -327,6 +327,7 @@ class VolumeAlignment(QWidget):
                                 print(lp)
                                 self.replaceValues(lp, points_between)
                                 flag = False
+                                break
                     else:
                         for p in self.channels:
                             if p[1] - diff <= line_point[1] and p[1] - diff > self.closest(self.pointsAdded, p[1] - diff) and p[1] not in self.pointsAdded:
@@ -378,6 +379,7 @@ class VolumeAlignment(QWidget):
                                 print(lp)
                                 self.replaceValues(lp, points_between)
                                 flag = False
+                                break
                     else:
                         for p in self.channels:
                             if p[1] + diff >= line_point[1] and p[1] + diff > self.closest(self.pointsAdded, p[1] + diff) and p[1] not in self.pointsAdded:
