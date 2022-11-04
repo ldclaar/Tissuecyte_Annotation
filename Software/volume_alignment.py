@@ -432,8 +432,8 @@ class VolumeAlignment(QWidget):
             self.channelCoords[channel] = self.coords[line_point[1]]
 
         self.pointsAdded.append(line_point[1])
-        if flag:
-            self.linearSpacePoints()
+   
+        self.linearSpacePoints()
         #print(self.channelCoords)
         view = self.image.getView()
         view.addItem(h_line)
