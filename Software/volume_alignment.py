@@ -232,8 +232,8 @@ class VolumeAlignment(QWidget):
         for i in range(len(self.channels)):
             channel = self.channels[i]
             y_coord = channel[1]
-
-            coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
+            print(int(y_coord))
+            coord = self.coords[int(y_coord)] # get the 3d coordinate at that point on the probe track
             #print(coord)
             channel_dict['AP'].append(coord[0])
             channel_dict['DV'].append(coord[1])
@@ -275,7 +275,7 @@ class VolumeAlignment(QWidget):
         self.linearSpacePoints()
 
     def replaceValues(self, lp, points_between):
-        print(points_between)
+        #print(points_between)
         for i in range(len(lp)):
             ind = self.channels.index(points_between[len(lp) - i - 1])
             #print(self.channels[ind])
@@ -385,7 +385,7 @@ class VolumeAlignment(QWidget):
                                 points_between = [p for p in self.channels if p[1] > self.channelsPlot.scatterPoint[1] and p[1] < point]
                                 self.channels[channel][1] += diff
                                 lp = np.linspace(self.channels[channel][1] + 1, point - 1, len(points_between))
-                                print(lp)
+                                #print(lp)
                                 self.replaceValues(lp, points_between)
                                 flag = False
                                 break

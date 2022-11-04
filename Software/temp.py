@@ -13,7 +13,7 @@ if __name__ == '__main__':
     mouse_id = args.mouseID
 
     df_final_f1 = pd.read_csv('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/{}/Probe F1_channels_626791_warped.csv'.format(mouse_id))
-    df_final_a1 = pd.read_csv('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/{}/Probe A1_channels_626791_warped.csv'.format(mouse_id))
+    df_final_a1 = pd.read_csv('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/{}/Probe_A1_channels_626791_warped.csv'.format(mouse_id))
     reference = sitk.ReadImage('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/field_reference/average_template_25.nrrd')
     arr = sitk.GetArrayFromImage(reference).T
 
