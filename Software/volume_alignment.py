@@ -155,7 +155,7 @@ class VolumeAlignment(QWidget):
         #self.denseChannelsPlot.setData(pos=np.array(self.densityChannels, dtype=int), adj=np.array(self.adj, dtype=int))
         self.channelsPlot.setData(pos=np.array(self.channelsOriginal, dtype=float), adj=np.array(self.adj, dtype=int))
 
-        view = self.image.getView()
+        #view = self.image.getView()
         #view.addItem(self.channelsPlot)
         #view.addItem(self.denseChannelsPlot)
 
@@ -191,6 +191,10 @@ class VolumeAlignment(QWidget):
 
         self.viewButton = QPushButton('View Probe Region with Selected Metric')
         self.viewButton.clicked.connect(self.displayRegion)
+
+        self.resetPlotButton = QPushButton('Reset Metric Plot')
+        self.resetPlotButton.clicked.connect(self.resetPlot)
+
         self.warpButton = QPushButton('Warp to CCF')
         self.warpButton.clicked.connect(self.warpChannels)
 
@@ -198,12 +202,15 @@ class VolumeAlignment(QWidget):
         self.probeViewLayout.addWidget(self.probeDropDown)
         self.probeViewLayout.addWidget(self.metrics)
         self.probeViewLayout.addWidget(self.viewButton)
+        self.probeViewLayout.addWidget(self.resetPlotButton)
+
         self.probeViewLayout.addWidget(self.warpButton)
         self.probeViewLayout.setAlignment(QtCore.Qt.AlignTop)
         self.mainLayout.addLayout(self.probeViewLayout)
 
         self.setLayout(self.mainLayout)
         self.showMaximized()
+
 
     # when a new probe is displayed
     def resetPlot(self):
@@ -231,14 +238,17 @@ class VolumeAlignment(QWidget):
 
         for i in range(len(self.channels)):
             channel = self.channels[i]
-            y_coord = channel[1]
-            print(int(y_coord))
-            coord = self.coords[int(y_coord)] # get the 3d coordinate at that point on the probe track
-            #print(coord)
+            y_coord = int(np.round(channel[1]))
+
+            if y_coord not in self.coords:
+                coord = (0, 0, 0)
+            else:
+                coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
+
+            print(coord)
             channel_dict['AP'].append(coord[0])
             channel_dict['DV'].append(coord[1])
             channel_dict['ML'].append(coord[2])
-
 
         probe_name = self.probeDropDown.currentText()
         probe = [probe_name for i in range(len(channel_dict['AP']))]
@@ -270,8 +280,8 @@ class VolumeAlignment(QWidget):
         view.removeItem(item)
         self.lineItems.remove(item)
         self.pointsAdded.remove(y_coord)
-        self.channels = self.oldChannels.pop(ind)
-        self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
+        #self.channels = self.oldChannels.pop(ind)
+        #self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
         self.linearSpacePoints()
 
     def replaceValues(self, lp, points_between):
@@ -475,11 +485,9 @@ class VolumeAlignment(QWidget):
         intensity_values = np.zeros((linepts.shape[0],400))
         self.coords = {}
         self.linepts = linepts
-        print(self.linepts.shape)
-        print(linepts[0])
+
         for j in range(linepts.shape[0]):
-            if j < linepts.shape[0]:
-                self.coords[j] = (linepts[j, 0], linepts[j, 1], linepts[j, 2])
+            self.coords[j] = (linepts[j, 0], linepts[j, 1], linepts[j, 2])
 
             for k in range(-200,200):
                 try:
@@ -497,7 +505,7 @@ class VolumeAlignment(QWidget):
         self.image.setImage(flip[:, 500:j], levels=(0, 255), autoRange=False)
 
         view = self.image.getView()
-        self.points = [[200, t] for t in range(j - 500)]
+        self.points = [[200, t] for t in range(-500, j - 500)]
         self.plItem = pg.ScatterPlotItem(pos=self.points, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')))
         #self.plItem.setClickable(True)
         self.plItem.sigClicked.connect(self.onclickProbe)
