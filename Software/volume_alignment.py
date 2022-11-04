@@ -133,9 +133,18 @@ class VolumeAlignment(QWidget):
 
         #self.unit_dense = np.random.randint(384, size=384)
         self.frequencyCounts = self.unitDense['peak_channel'].value_counts().sort_index().reset_index().to_numpy()
-        print(self.frequencyCounts)
         #x = np.linspace(-10, 100, num=384)
-        self.channelsOriginal = [[self.frequencyCounts[i, 1], self.frequencyCounts[len(self.frequencyCounts) - i - 1, 0]] for i in range(len(self.frequencyCounts))]
+        self.channelsRecorded = self.frequencyCounts[:, 0].tolist()
+        self.channelsOriginal = []
+
+        for i in range(384):
+            if i in self.channelsRecorded:
+                ind = self.channelsRecorded.index(i)
+                self.channelsOriginal.append([i, self.frequencyCounts[ind, 1]])
+            else:
+                self.channelsOriginal.append([i, 0])
+
+        self.channelsOriginal = [[self.channelsOriginal[i][1], self.channelsOriginal[len(self.channelsOriginal) - i - 1][0]] for i in range(len(self.channelsOriginal))]
         #self.densityChannels = [[50, int(i * 3.84)] for i in range(384)]
         self.adj = [[i, i + 1] for i in range(len(self.channelsOriginal) - 1)]
 
@@ -295,6 +304,7 @@ class VolumeAlignment(QWidget):
             self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
 
     def onclickProbe(self, plot, points):
+        print(len(self.channels))
         line_point = points[0].pos()
         #print(self.channels)
         channel = self.channels.index([self.channelsPlot.scatterPoint[0], self.channelsPlot.scatterPoint[1]])
@@ -324,7 +334,6 @@ class VolumeAlignment(QWidget):
                                 points_between = [p for p in self.channels if p[1] < self.channelsPlot.scatterPoint[1] and p[1] > point]
                                 self.channels[channel][1] -= diff
                                 lp = np.linspace(point + 1, self.channels[channel][1] - 1, len(points_between))
-                                print(lp)
                                 self.replaceValues(lp, points_between)
                                 flag = False
                                 break
