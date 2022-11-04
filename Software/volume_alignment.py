@@ -261,7 +261,7 @@ class VolumeAlignment(QWidget):
         view.removeItem(item)
         self.lineItems.remove(item)
         self.pointsAdded.remove(y_coord)
-        self.channels = self.oldChannels.pop()
+        self.channels = self.oldChannels.pop(ind)
         self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
         self.linearSpacePoints()
 
@@ -314,7 +314,7 @@ class VolumeAlignment(QWidget):
                         else:
                             newPoints.append([p[0], p[1]])
                 else:
-                    srt = sorted(self.pointsAdded)
+                    srt = sorted(self.pointsAdded, reverse=True)
                     greater = [t for t in self.pointsAdded if t > line_point[1]]
                     less = [t for t in self.pointsAdded if t < line_point[1]]
 
