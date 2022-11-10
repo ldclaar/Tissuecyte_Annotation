@@ -16,6 +16,7 @@ from PyQt5 import QtWidgets
 import sys
 from get_tissuecyte_info import get_tc_info
 from warp_image import warp_channels
+import xmltodict
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
@@ -248,7 +249,7 @@ class VolumeAlignment(QWidget):
             print(coord)
             channel_dict['AP'].append(coord[0])
             channel_dict['DV'].append(coord[1])
-            channel_dict['ML'].append(coord[2])
+            channel_dict['ML'].append(coord[2] * 0.875)
 
         probe_name = self.probeDropDown.currentText()
         probe = [probe_name for i in range(len(channel_dict['AP']))]
@@ -261,9 +262,9 @@ class VolumeAlignment(QWidget):
     def displayRegion(self):
         probe = self.probeDropDown.currentText()
         view = self.image.getView()
-        view.addItem(self.channelsPlot)
         self.resetPlot()
         self.updateDisplay(probe)
+        view.addItem(self.channelsPlot)
 
     # helper function for shfiting points when new alignment is added
     def closest(self, lst, K):
@@ -280,8 +281,11 @@ class VolumeAlignment(QWidget):
         view.removeItem(item)
         self.lineItems.remove(item)
         self.pointsAdded.remove(y_coord)
-        #self.channels = self.oldChannels.pop(ind)
-        #self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
+
+        if len(self.pointsAdded) == 0:
+            self.channels = self.ogPoints
+
+        self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
         self.linearSpacePoints()
 
     def replaceValues(self, lp, points_between):
@@ -318,6 +322,7 @@ class VolumeAlignment(QWidget):
         line_point = points[0].pos()
         #print(self.channels)
         channel = self.channels.index([self.channelsPlot.scatterPoint[0], self.channelsPlot.scatterPoint[1]])
+
         self.oldChannels.append(self.channels)
         flag = True
 
@@ -329,16 +334,19 @@ class VolumeAlignment(QWidget):
 
                 if len(self.pointsAdded) == 0:
                     for p in self.channels:
+                        """
                         if p[1] <= self.channelsPlot.scatterPoint[1]:
                             newPoints.append([p[0], p[1] - diff])
                         else:
                             newPoints.append([p[0], p[1]])
+                        """
+                        newPoints.append([p[0], p[1] - diff])
                 else:
                     srt = sorted(self.pointsAdded, reverse=True)
                     greater = [t for t in self.pointsAdded if t > line_point[1]]
                     less = [t for t in self.pointsAdded if t < line_point[1]]
 
-                    if len(less) > 0 and len(greater) > 0:
+                    if len(less) > 0 and len(greater) > 0: # new alignment is between 2 exisiting, don't shift, just linearly interpolate
                         for point in srt:
                             if self.channelsPlot.scatterPoint[1] > point:
                                 points_between = [p for p in self.channels if p[1] < self.channelsPlot.scatterPoint[1] and p[1] > point]
@@ -347,12 +355,22 @@ class VolumeAlignment(QWidget):
                                 self.replaceValues(lp, points_between)
                                 flag = False
                                 break
-                    else:
+                    elif len(greater) > 0 and len(less) == 0:
                         for p in self.channels:
-                            if p[1] - diff <= line_point[1] and p[1] - diff > self.closest(self.pointsAdded, p[1] - diff) and p[1] not in self.pointsAdded:
+                            if p[1] <= self.channelsPlot.scatterPoint[1]:
                                 newPoints.append([p[0], p[1] - diff])
                             else:
                                 newPoints.append([p[0], p[1]])
+                    else:
+                        for point in srt:
+                            if self.channelsPlot.scatterPoint[1] > point:
+                                points_between = [p for p in self.channels if p[1] < self.channelsPlot.scatterPoint[1] and p[1] > point]
+                                self.channels[channel][1] -= diff
+                                lp = np.linspace(point + 1, self.channels[channel][1] - 1, len(points_between))
+                                self.replaceValues(lp, points_between)
+                                flag = False
+                                break
+
                 """
                 for p in self.channels:
                     if len(self.pointsAdded) == 0:
@@ -380,10 +398,13 @@ class VolumeAlignment(QWidget):
 
                 if len(self.pointsAdded) == 0:
                     for p in self.channels:
+                        """
                         if p[1] >= self.channelsPlot.scatterPoint[1]:
                             newPoints.append([p[0], p[1] + diff])
                         else:
                             newPoints.append([p[0], p[1]])
+                        """
+                        newPoints.append([p[0], p[1] + diff])
                 else:
                     srt = sorted(self.pointsAdded)
                     greater = [t for t in self.pointsAdded if t > line_point[1]]
@@ -399,14 +420,43 @@ class VolumeAlignment(QWidget):
                                 self.replaceValues(lp, points_between)
                                 flag = False
                                 break
+                    elif len(greater) > 0 and len(less) == 0:
+                        for point in srt:
+                            if self.channelsPlot.scatterPoint[1] < point:
+                                points_between = [p for p in self.channels if p[1] > self.channelsPlot.scatterPoint[1] and p[1] < point]
+                                self.channels[channel][1] += diff
+                                lp = np.linspace(self.channels[channel][1] + 1, point - 1, len(points_between))
+                                #print(lp)
+                                self.replaceValues(lp, points_between)
+                                flag = False
+                                break
                     else:
                         for p in self.channels:
-                            if p[1] + diff >= line_point[1] and p[1] + diff > self.closest(self.pointsAdded, p[1] + diff) and p[1] not in self.pointsAdded:
+                            if p[1] >= self.channelsPlot.scatterPoint[1]:
+                                newPoints.append([p[0], p[1] + diff])
+                            else:
+                                newPoints.append([p[0], p[1]])
+
+                        """
+                        for p in self.channels:
+                            
+                            if p[1] + diff >= line_point[1] and p[1] not in self.pointsAdded:
                                 newPoints.append([p[0], p[1] + diff])
                             else:
                                 newPoints.append([p[0], p[1]])
                             
-                    """
+                            if diff_closest > 0:
+                                if p[1] + diff  >= line_point[1] and p[1] + diff > self.closest(self.pointsAdded, p[1]) and p[1] not in self.pointsAdded:
+                                    newPoints.append([p[0], p[1] + diff])
+                                else:
+                                    newPoints.append([p[0], p[1]])
+                            else:
+                                if p[1] <= self.channelsPlot.scatterPoint[1] and p[1] + diff < self.closest(self.pointsAdded, p[1]) and p[1] not in self.pointsAdded:
+                                    newPoints.append([p[0], p[1] + diff])
+                                else:
+                                    newPoints.append([p[0], p[1]])
+                            
+                    
                     if len(self.pointsAdded) == 0:
                         if p[1] >= self.channelsPlot.scatterPoint[1]:
                             newPoints.append([p[0], p[1] + diff])
@@ -459,6 +509,31 @@ class VolumeAlignment(QWidget):
         #h_line.setClickable(True)
         h_line.sigClicked.connect(self.removeLine)
 
+    def getAffineMatrix(self, direction='tvr'):
+        storage_directory = get_tc_info(self.mouseID)
+
+        with open('/{}/local_alignment/localalignment_transform_input.xml'.format(storage_directory)) as f:
+            transform_dict = xmltodict.parse(f.read())
+            align3d = transform_dict['alignment']['alignment3ds']['alignment3d']
+            print(align3d)
+
+            self.affine = np.zeros((4, 3), dtype=float)
+            i = 0
+            j = 0
+
+            for key in align3d:
+                if direction in key:
+                    self.affine[i][j] = float(align3d[key]['#text'])
+
+                    if j == self.affine.shape[1] - 1: # move to next row in matrix
+                        j = 0
+                        i += 1
+                    else:
+                        j += 1
+
+                if i == self.affine.shape[0]: # finished
+                    break
+
     # displays the region along the probe track
     # probe: the probe to be displayed from the drop down
     def updateDisplay(self, probe):
@@ -471,6 +546,7 @@ class VolumeAlignment(QWidget):
         if len(z) > 0:
             data = np.vstack((z,y,x)).T
             datamean = data.mean(axis=0)
+
             D = data - datamean
             m1 = np.min(D[:,1]) * 2
             m2 = np.max(D[:,1]) * 2
@@ -482,22 +558,54 @@ class VolumeAlignment(QWidget):
             if linepts[-1,1] - linepts[0,1] < 0:
                 linepts = np.flipud(linepts)
             
-        intensity_values = np.zeros((linepts.shape[0],400))
+        intensity_values = np.zeros((linepts.shape[0],160))
         self.coords = {}
         self.linepts = linepts
 
         for j in range(linepts.shape[0]):
             self.coords[j] = (linepts[j, 0], linepts[j, 1], linepts[j, 2])
 
-            for k in range(-200,200):
+            for k in range(-80,80):
                 try:
-                    intensity_values[j,k+200] = (self.volumeImage[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
+                    intensity_values[j,k+80] = (self.volumeImage[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
                 except IndexError:
                     pass
-
+        
         # display image
         #intensity_values *= 2.
+        #self.trigScale = intensity_values.shape[0] / intensity_values.shape[1] 
+        
+        self.trigScale = (np.linalg.norm(linepts[linepts.shape[0] - 1, :]) - np.linalg.norm(linepts[0, :])) / intensity_values.shape[1]
+        print('Trig Scale', self.trigScale)
+        self.getAffineMatrix()
+
+        self.dz = linepts[linepts.shape[0] - 1, 0] - linepts[0, 0]
+        self.dy = linepts[linepts.shape[0] - 1, 1] - linepts[0, 1]
+        self.dx = linepts[linepts.shape[0] - 1, 2] - linepts[0, 2]
+        self.vector = np.array([self.dz, self.dy, self.dx])
+        self.vectorPrime = self.affine.dot(self.vector)
+        self.affScale = np.linalg.norm(self.vectorPrime[0:3]) / np.linalg.norm(self.vector)
+        print('Aff Scale', self.affScale)
+
+        self.scale = 3840 / (self.trigScale * 10 *  (1 / self.affScale))
+        print('Scale', self.scale)
+        self.scale /= 384
+
+        print('Final Scale', self.scale)
+        newPoints = []
+        for p in self.channelsOriginal:
+            if self.scale >= 1:
+                newPoints.append([p[0], ((p[1] / self.scale) + p[1])])
+            else:
+                newPoints.append([p[0], ((p[1] * self.scale) + p[1])])
+        
+        self.ogPoints = newPoints
+        self.channels = newPoints
+        self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
+        
         self.volArray = self.getColorVolume(intensity_values)
+        print(self.volArray.shape)
+        
         self.volArray *= 2
         rot = np.rot90(self.volArray)
         flip = np.flipud(rot)
@@ -505,7 +613,7 @@ class VolumeAlignment(QWidget):
         self.image.setImage(flip[:, 500:j], levels=(0, 255), autoRange=False)
 
         view = self.image.getView()
-        self.points = [[200, t] for t in range(-500, j - 500)]
+        self.points = [[80, t] for t in range(-500, j)]
         self.plItem = pg.ScatterPlotItem(pos=self.points, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')))
         #self.plItem.setClickable(True)
         self.plItem.sigClicked.connect(self.onclickProbe)
