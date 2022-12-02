@@ -12,3 +12,4 @@ scikit_learn==1.1.2
 setuptools==61.2.0
 SimpleITK==2.2.0
 visvis==1.13.0
+xmltodict==0.13.0

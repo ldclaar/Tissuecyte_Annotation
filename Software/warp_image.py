@@ -77,8 +77,17 @@ def warp_channels(output_dir, annotations, field, reference, probe, mouse_id, ch
         if ap < arr.shape[0] and dv < arr.shape[1] and ml < arr.shape[2]:
             arr[ap, dv, ml] = 1
 
-    im = sitk.GetImageFromArray(arr.T)
+    
+    min_ind = int(np.round(annotations['AP'].min() / 2.5))
+    max_ind = int(np.round(annotations['AP'].max() / 2.5))
+
+    if min_ind == max_ind: # probes on same slice
+        im = sitk.GetImageFromArray(arr[min_ind:min_ind+1, :, :].T)
+    else: # probes across multiple slices
+        im = sitk.GetImageFromArray(arr[min_ind:max_ind+1, :, :].T)
+
     im.SetSpacing((25, 25, 25))
+    im.SetOrigin((min_ind * 25, 0, 0))    
 
     result = warp_execute(im, reference, field, sitk.sitkLinear)
     result_arr = sitk.GetArrayFromImage(result)
