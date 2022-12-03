@@ -80,3 +80,18 @@ The app has the following main components
   * Show/Hide Probes: To show/hide probes, select the checkboxes for the probes that should be hidden, and then click the Update Probe Trajectory Display. Follow the same steps to show the probes by unchecking the desired probes
   * Switch Probes: To switch two probes, select the current probe and day from the corresponding drop down, and then the new probe and day from the corresponding drop down, and then hit the Switch Probes button 
   * Reassign Probes: If a probe needs to be assigned to another one, but you are not sure if it needs to be switched, use this function. For example, if the current probe C1 needs to be reassigned to probe C3, and there is another probe that is C3, using this will change probe C1 to C3, and the original C3 will become the color black and have the label origProbe_C3. This allows for reassigning this probe later on, and it provides some history as to what the probe was orignally
+  
+### Alignment App
+This app allows for the alginment of the 384 channels to the corresponding regions of interest. Run the command `python volume_alignment.app --mouseID <mouseID>
+
+Click on the probe and the desired metric that will be displayed along with the unit density. Then hit the `View Probe Region With Selected Metric` button. This will display the selected metric along with the unit density. The unit density will always be the plot closest to the red probe track.
+
+The app has the following components:
+  * Zoom in/out - use the mouse wheel
+  * Volume alignment: Zoom in and select a channel (point) on the unit density plot. Then click on a corresponding region on the probe and a yellow horizontal line should connect from the channel to that point on the probe. The plots will then shift/linearly space depending on the alignment made
+  * Remove Alignment: Click on a yellow line to remove that alignment. Note this works best when zooming out
+  * Reset Metric Plot will clear the alignments and reset both plots to the original positions
+  * To change a metric, choose from the drop down and then hit the `View Probe Region With Selected Metric` button
+  * To view a different probe, select from the probe drop down and then hit the same button as above
+
+
