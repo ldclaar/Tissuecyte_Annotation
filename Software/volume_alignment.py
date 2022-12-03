@@ -166,7 +166,7 @@ class PlotDisplayItem():
                 else:
                     self.channelsOriginal.append([i, 0])
            
-            self.channelsOriginal = [[self.channelsOriginal[i][1], i] for i in range(len(self.channelsOriginal))]
+            self.channelsOriginal = [[self.channelsOriginal[i][1] - 20, i] for i in range(len(self.channelsOriginal))]
         elif self.measurement == 'spread':
             self.processMetrics()
             self.generateMetricChannels(measurement, shift_value=0, rolling_value=150)
