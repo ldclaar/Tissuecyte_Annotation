@@ -181,10 +181,10 @@ class PlotDisplayItem():
             self.generateMetricChannels(measurement, shift_value=5, rolling_value=150)
         elif self.measurement == 'velocity_above':
             self.processMetrics()
-            self.generateMetricChannels(measurement, shift_value=0, rolling_value=150)
+            self.generateMetricChannels(measurement, shift_value=1/2, rolling_value=150)
         elif self.measurement == 'velocity_below':
             self.processMetrics()
-            self.generateMetricChannels(measurement, shift_value=0, rolling_value=150)
+            self.generateMetricChannels(measurement, shift_value=1/2, rolling_value=150)
         elif self.measurement == 'amplitude':
             self.processMetrics()
             self.generateMetricChannels(measurement, shift_value=5, rolling_value=150)
@@ -195,7 +195,7 @@ class PlotDisplayItem():
         values = self.averageMetricsChannels[metric].to_numpy().tolist()
 
         if 'velocity' in metric:
-            conv = np.ones(1)
+            conv = np.ones(2)
         else:
             conv = np.ones(20)
         #peak_values = [int(p) for p in peak_values]
