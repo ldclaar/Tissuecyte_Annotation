@@ -93,5 +93,6 @@ The app has the following components:
   * Reset Metric Plot will clear the alignments and reset both plots to the original positions
   * To change a metric, choose from the drop down and then hit the `View Probe Region With Selected Metric` button
   * To view a different probe, select from the probe drop down and then hit the same button as above
+  * Tip: Start Alignment at the top of the plot and then work in a top-down manner
 
 
