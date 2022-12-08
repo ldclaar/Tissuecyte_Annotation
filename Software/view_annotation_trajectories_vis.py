@@ -45,12 +45,12 @@ class AnnotationProbesViewer(QWidget):
     
         #affineAligned = sitk.ReadImage( input_file )
         #affineAligned.SetSpacing((25, 25, 25))
-        self.field_file = os.path.join( self.storage_directory, 'dfmfld.mhd')
+        #self.field_file = os.path.join( self.storage_directory, 'dfmfld.mhd')
         self.reference_file = os.path.join( self.model_directory, 'average_template_25.nrrd')
 
         self.volume = sitk.GetArrayFromImage(sitk.ReadImage(self.reference_file)).T
         self.reference = sitk.ReadImage( self.reference_file )
-        self.field = sitk.ReadImage( self.field_file )
+        #self.field = sitk.ReadImage( self.field_file )
 
         self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
         self.updatedAnnotations = self.annotations.copy(deep=True)
@@ -245,6 +245,7 @@ class AnnotationProbesViewer(QWidget):
 
         self.update_plot(self.updatedAnnotations)
         self.update_plot_2d(self.updatedAnnotations)
+
     def saveUpdatedProbes(self):
         if not os.path.exists(os.path.join(self.workingDirectory, 'reassigned')):
             os.mkdir(os.path.join(self.workingDirectory, 'reassigned'))
@@ -278,7 +279,6 @@ class AnnotationProbesViewer(QWidget):
         self.trialOld.addItem('2')
         self.trialOld.addItem('3')
         self.trialOld.addItem('4')
-        self.trialOld.addItem('5')
 
         for probe in qProbe: 
             self.probeOld.addItem(probe)
@@ -293,6 +293,7 @@ class AnnotationProbesViewer(QWidget):
     # called when probes need to be updated
     def updateProbe(self):
         probes = self.updatedAnnotations['probe_name'].unique()
+        print(probes)
         orig_counts = len([p for p in probes if 'orig_Probe' in p])
         
         if not 'orig_Probe' in self.probeOld.currentText(): # new probe is not one of the probes currently displayed
@@ -302,15 +303,12 @@ class AnnotationProbesViewer(QWidget):
             probe_name_old = self.probeOld.currentText() + ' ' + self.trialOld.currentText()
             self.qProbe.pop(0)
             self.qTrial.pop(0)
-
+            print(self.qProbe)
             probe_name_new = 'Probe' + ' ' + self.probeNew.currentText() + self.trialNew.currentText()
 
-        self.probeOld.setCurrentText('Current Probe')
-        self.trialOld.setCurrentText('Current Number')
-        self.probeNew.setCurrentText('New Probe')
-        self.trialNew.setCurrentText('New Number')
 
-        if probe_name_new in probes: # need to add this to drop down, so it can be reassigned later on
+        if probe_name_new in probes and probe_name_new[probe_name_new.index(' ') + 1:] != self.trialOld.currentText(): # need to add this to drop down, so it can be reassigned later on
+            print(self.trialOld.currentText())
             #self.probeOld.addItem('orig_Probe')
             self.qProbe.append('orig_Probe')
             #self.trialOld.addItem(probe_name_new[probe_name_new.index(' ') + 1:])
@@ -322,6 +320,11 @@ class AnnotationProbesViewer(QWidget):
         self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == probe_name_old, 'probe_name'] = probe_name_new
         self.update_plot(self.updatedAnnotations)
         self.update_plot_2d(self.updatedAnnotations)
+
+        self.probeOld.setCurrentText('Current Probe')
+        self.trialOld.setCurrentText('Current Number')
+        self.probeNew.setCurrentText('New Probe')
+        self.trialNew.setCurrentText('New Number')
         """
         print(probe_name_old, probe_name_new)
         self.updatedAnnotations = self.annotations.replace(probe_name_old, probe_name_new)
@@ -345,9 +348,9 @@ class AnnotationProbesViewer(QWidget):
         min_y_index = np.argmin(y_click_data) # closest y index to click
         print(min_x_index, min_y_index)
         print(x_click_data[min_x_index], y_click_data[min_y_index])
-        if y_click_data[min_y_index] <= 2 and x_click_data[min_x_index] <= 2:
+        if min_x_index == min_y_index:
               print(min_x_index, min_y_index)
-              self.updatedAnnotations.drop([min_x_index], inplace=True)
+              self.updatedAnnotations.drop([min_y_index], inplace=True)
               self.updatedAnnotations.reset_index(drop=True, inplace=True)
               self.update_plot(self.updatedAnnotations) 
               self.update_plot_2d(self.updatedAnnotations)
@@ -427,8 +430,8 @@ class AnnotationProbesViewer(QWidget):
                     self.axes.scatter(x,y,c=self.colors[probe].replace(' ', ''), s=15, alpha=0.95)
                     self.axes.plot(linepts[:,2],linepts[:,1],color=self.colors[probe].replace(' ', ''), alpha=0.5, label=probe_trial)
             else: # make probe light grey, needs to be reassigned later
-                self.axes.scatter(x,y,c='black', s=5, alpha=0.95)
-                self.axes.plot(linepts[:,2],linepts[:,1],color='white', alpha=0.5, label=probe_trial)
+                self.axes.scatter(x,y,c='lightgrey', s=5, alpha=0.95)
+                self.axes.plot(linepts[:,2],linepts[:,1],color='lightgrey', alpha=0.5, label=probe_trial)
         
         #self.axes.legend(loc='upper left')
         #self.axes.set_xlabel('ML')
@@ -493,7 +496,7 @@ class AnnotationProbesViewer(QWidget):
                         legend.append(probe_trial)
                 else: # make probe light grey, needs to be reassigned later
                     legend.append(probe_trial)
-                    color_grey = (0, 0, 0)
+                    color_grey = (211, 211, 211)
                     color = tuple(t / 255 for t in color_grey)
                     vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color_grey, axes=self.ax)
         

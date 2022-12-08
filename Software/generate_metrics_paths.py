@@ -51,7 +51,7 @@ def generate_metrics_path_days(base_path, mouse_id):
                         else:
                             metrics_path_days[date].append(waveform_metrics_path)
 
-    print(metrics_path_days)
+    #print(metrics_path_days)
     return metrics_path_days
 
 if __name__ == '__main__':
