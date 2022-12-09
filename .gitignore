@@ -1,0 +1,9 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/Software/__pycache__/annotation_app_pyqtgraph_temp.cpython-39.pyc
+/Software/__pycache__/generate_metrics_paths.cpython-39.pyc
+/Software/__pycache__/get_tissuecyte_info.cpython-37.pyc
+/Software/__pycache__/get_tissuecyte_info.cpython-39.pyc
+/Software/__pycache__/warp_image.cpython-39.pyc
