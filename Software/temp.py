@@ -3,16 +3,20 @@ import pandas as pd
 import SimpleITK as sitk
 import argparse
 import pathlib
+import numpy as np
+from pandas_profiling import ProfileReport
 
 parser = argparse.ArgumentParser()
 #parser.add_argument('-i', '--inputResampledImages', help='Directory to resampeld images', required=True)
 #parser.add_argument('-a', '--annotationFileLocation', help='Path for annotation csv file to be saved in this location', required=True)
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
+parser.add_argument('--probe', help='Probe to be analyzed', required=True)
 
 if __name__ == '__main__':
     args = parser.parse_args()
     mouse_id = args.mouseID
-
+    probe = args.probe
+    """
     
     df_final_a1 = pd.read_csv('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/{}/Probe_A1_channels_626791_warped.csv'.format(mouse_id))
     reference = sitk.ReadImage('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/field_reference/average_template_25.nrrd')
@@ -83,4 +87,7 @@ if __name__ == '__main__':
     ax[5].set_title('Velocity Below')
 
     plt.show()
-    
+    """
+    metrics = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.{}-AP/waveform_metrics.csv'.format(probe)))
+    profile = ProfileReport(metrics)
+    profile.to_file("output.html")

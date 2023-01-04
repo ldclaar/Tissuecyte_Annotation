@@ -1,8 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\Software"
+    "\\Software",
+    "\\Software\\__pycache__"
   ],
-  "SelectedNode": "\\Software\\volume_alignment.py",
+  "SelectedNode": "\\Software\\resample_images.py",
   "PreviewInSolutionExplorer": false
 }

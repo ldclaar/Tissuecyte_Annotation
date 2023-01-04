@@ -18,12 +18,22 @@ from get_tissuecyte_info import get_tc_info
 from warp_image import warp_channels
 import xmltodict
 from generate_metrics_paths import generate_metrics_path_days
+import visvis as vis
+from warp_image import warp_execute
+import pickle
+from PIL import Image
+from PIL import ImageDraw
+from PIL import ImageFont
+import pathlib
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
 
 SCALING_FACTOR = 1.5
 DEFAULT_COLOR_VALUES = [[0, 3000], [0, 3000], [0, 1000]]
 
+# graph represents a metric plot that can be clicked on
+# pyqtgraph documentation
 class Graph(pg.GraphItem):
     def __init__(self):
         self.dragPoint = None
@@ -107,6 +117,8 @@ class Graph(pg.GraphItem):
         self.lastPoint = points[0]
         self.scatterPoint = points[0].pos()
 
+# class for metric plot
+# each metric plot is represented by a plot display item which uses the graph class above
 class PlotDisplayItem():
     # create default image
     def __init__(self, measurement, waveform, metrics, probe_annotations, mouse_id, metrics_list):
@@ -117,15 +129,6 @@ class PlotDisplayItem():
 
         self.probeAnnotations = probe_annotations
         self.mouseID = mouse_id
-        """
-        im8 = np.ones((self.height,self.width),dtype='uint8')*255
-        self.image = pg.image(im8)
-        self.image.ui.histogram.hide()
-        self.image.ui.roiBtn.hide()
-        self.image.ui.menuBtn.hide()
-        self.image.setObjectName('image')
-        #self.image.setImage(im8.transpose())
-        """
         self.pointsAdded = []
         self.channelCoords = {}
         self.lineItems = []
@@ -145,11 +148,15 @@ class PlotDisplayItem():
 
         #self.channels = self.channelsOriginal
     
+    # Updates the metrics with the given path to the metrics csv
+    # path: string, the path to the csv
     def updateMetrics(self, path):
         self.waveform_metrics = pd.read_csv(path)
         print('Metrics Path', path)
         self.generateMetrics(self.measurement)
 
+    # generates the metrics based on the measurement passed in
+    # measurement: string, the metric
     def generateMetrics(self, measurement):
         if self.measurement == 'unit_density':
             self.processMetrics()
@@ -165,43 +172,47 @@ class PlotDisplayItem():
                 else:
                     self.channelsOriginal.append([i, 0])
            
-            self.channelsOriginal = [[self.channelsOriginal[i][1] - 5, 384 - i - 1] for i in range(len(self.channelsOriginal))]
-            """
-            x_val = [p[0] for p in self.channelsOriginal]
+            self.channelsOriginal = [[self.channelsOriginal[i][1] - 10, 384 - i - 1 + 256] for i in range(len(self.channelsOriginal))]
+            
+            x_val = [p[0] * 5 for p in self.channelsOriginal]
             conv = np.ones(5)
 
-            smoothed = np.convolve(x_val, conv, mode='same')
+            smoothed = np.convolve(x_val, conv, mode='same') / np.sum(conv)
             self.channelsOriginal = [[smoothed[i], self.channelsOriginal[i][1]] for i in range(384)]
-            """
         elif self.measurement == 'spread':
             self.processMetrics()
-            self.generateMetricChannels(measurement, shift_value=0, rolling_value=200)
+            self.generateMetricChannels(measurement, scale_value=0, shift_value=200)
         elif self.measurement == 'firing_rate':
             self.processMetrics()
-            self.generateMetricChannels(measurement, shift_value=3, rolling_value=150)
+            self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
         elif self.measurement == 'd_prime':
             self.processMetrics()
-            self.generateMetricChannels(measurement, shift_value=1, rolling_value=150)
+            self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
         elif self.measurement == 'cumulative_drift':
             self.processMetrics()
-            self.generateMetricChannels(measurement, shift_value=5, rolling_value=150)
+            self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
         elif self.measurement == 'velocity_above':
             self.processMetrics()
-            self.generateMetricChannels(measurement, shift_value=1/4, rolling_value=150)
+            self.generateMetricChannels(measurement, scale_value=1/30, shift_value=150)
         elif self.measurement == 'velocity_below':
             self.processMetrics()
-            self.generateMetricChannels(measurement, shift_value=1/4, rolling_value=150)
+            self.generateMetricChannels(measurement, scale_value=1/30, shift_value=150)
         elif self.measurement == 'amplitude':
             self.processMetrics()
-            self.generateMetricChannels(measurement, shift_value=5, rolling_value=150)
+            self.generateMetricChannels(measurement, scale_value=5, shift_value=150)
 
-    def generateMetricChannels(self, metric, shift_value, rolling_value):
+    # helper function to generate the metric channels
+    # metric: string
+    # scale_value: float, value to scale the plot by this amount when displayed
+    # shit_value: int, value to shift the plot by this amount when displayed
+    def generateMetricChannels(self, metric, scale_value, shift_value):
         #print('Metric', metric)
         peak_values = self.averageMetricsChannels['peak_channel'].values.tolist()
         values = self.averageMetricsChannels[metric]
 
         if 'velocity' in metric:
-            values = (2 * ((values - values.abs().min()) / (values.abs().max() - values.abs().min()))) - 1
+            values = values / values.abs().max()
+            values = values / scale_value
             values = values.to_numpy().tolist()
             conv = np.ones(1)
         else:
@@ -212,19 +223,21 @@ class PlotDisplayItem():
         for i in range(384):
             if i in peak_values:
                 index = peak_values.index(i)
-                self.channelsOriginal.append([values[index], 384 - i - 1])
+                self.channelsOriginal.append([values[index], 384 - i - 1 + 256])
                 #conv[index] = 1
             else:
-                self.channelsOriginal.append([0, 384 - i - 1])
-
+                self.channelsOriginal.append([0, 384 - i - 1 + 256])
+        
+        
         x_val = [p[0] for p in self.channelsOriginal]
         smoothed = np.convolve(x_val, conv, mode='same') / np.sum(conv)
         #print(smoothed.shape)
         for i in range(384):
-            if shift_value != 0:
-                self.channelsOriginal[i] = [(smoothed[i] / shift_value) - rolling_value, self.channelsOriginal[i][1]]
+            if scale_value != 0 and 'velocity' not in metric:
+                self.channelsOriginal[i] = [(smoothed[i] / scale_value) - shift_value, self.channelsOriginal[i][1]]
             else:
-                self.channelsOriginal[i] = [(smoothed[i]) - rolling_value, self.channelsOriginal[i][1]]
+                self.channelsOriginal[i] = [(smoothed[i]) - shift_value, self.channelsOriginal[i][1]]
+        
 
     def processMetrics(self):
         self.averageMetricsChannels = self.waveform_metrics.groupby('peak_channel').mean().reset_index()
@@ -239,43 +252,7 @@ class PlotDisplayItem():
         if len(lst) > 0:
             return lst[min(range(len(lst)), key = lambda i: abs(lst[i]-K))]
 
-    """
-    # function to remove lines from other plots to keep alignment across all plots
-    def removeLineOthers(self, other_plot, ind):
-        y_coord = other_plot.pointsAdded[ind]
-
-        view = other_plot.image.getView()
-        item = other_plot.lineItems[ind]
-        view.removeItem(item)
-        other_plot.lineItems.remove(item)
-        other_plot.pointsAdded.remove(y_coord)
-
-        if len(other_plot.pointsAdded) == 0:
-            other_plot.channels = other_plot.ogPoints
-
-        other_plot.channelsPlot.setData(pos=np.array(other_plot.channels, dtype=float), adj=np.array(other_plot.adj, dtype=int))
-        other_plot.linearSpacePoints()
-
-    # remove the line clicked on from the refinement display
-    def removeLine(self, plots, points):
-        y_coord = points[0].pos()[1]
-        ind = self.pointsAdded.index(y_coord)
-
-        view = self.image.getView()
-        item = self.lineItems[ind]
-        view.removeItem(item)
-        self.lineItems.remove(item)
-        self.pointsAdded.remove(y_coord)
-
-        if len(self.pointsAdded) == 0:
-            self.channels = self.ogPoints
-
-        self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
-        self.linearSpacePoints()
-
-        for plot in self.otherPlots:
-            self.removeLineOthers(plot, ind)
-    """
+    # helper function to update channel positions for linear interpolation between 2 alignments
     def replaceValues(self, lp, points_between):
         #print(points_between)
         for i in range(len(lp)):
@@ -284,6 +261,8 @@ class PlotDisplayItem():
             self.channels[ind][1] = lp[i]
             #print(self.channels[ind])
 
+    # linearly space points between 2 alignments
+    # pointsAdded: the list of alignments that have been made so far
     def linearSpacePoints(self, pointsAdded):
         if len(pointsAdded) > 1:
             sorted_linepts = sorted(pointsAdded)
@@ -310,6 +289,8 @@ class PlotDisplayItem():
 
             self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
 
+    # for alignments above current channel
+    # shift up, i.e. subtract
     def linspaceAbove(self, srt, channel, diff, flag):
         for point in srt:
             if self.channelsPlot.scatterPoint[1] > point:
@@ -322,6 +303,8 @@ class PlotDisplayItem():
 
         return flag
 
+    # for alignments below current channel
+    # shift down, i.e. add
     def linspaceBelow(self, srt, channel, diff, flag):
         for point in srt:
             if self.channelsPlot.scatterPoint[1] < point:
@@ -333,202 +316,7 @@ class PlotDisplayItem():
                 break
 
         return flag
-    """
-    # updates the other plots to align it with the plot that was clicked on
-    def updateAfterClick(self, other_plot, line_point, channel, pointsAdded):
-        print('Other plot clicked', other_plot.measurement)
-        other_plot.channelsPlot.scatterPoint = other_plot.channels[channel]
-        other_plot.oldChannels.append(other_plot.channels)
-        flag = True
 
-        if line_point[1] != other_plot.channelsPlot.scatterPoint[1]:
-            if line_point[1] < other_plot.channelsPlot.scatterPoint[1]:
-                #print('lower')
-                diff = abs(line_point[1] - other_plot.channelsPlot.scatterPoint[1])
-                newPoints = []
-
-                if len(pointsAdded) == 0:
-                    for p in other_plot.channels:
-                        newPoints.append([p[0], p[1] - diff])
-                else:
-                    srt = sorted(pointsAdded, reverse=True)
-                    greater = [t for t in pointsAdded if t > line_point[1]]
-                    less = [t for t in pointsAdded if t < line_point[1]]
-
-                    if len(less) > 0 and len(greater) > 0: # new alignment is between 2 exisiting, don't shift, just linearly interpolate
-                        flag = other_plot.linspaceAbove(srt, channel, diff, flag, other_plot)
-                    elif len(greater) > 0 and len(less) == 0: # new line is below exiting, so shift
-                        for p in other_plot.channels:
-                            if p[1] <= other_plot.channelsPlot.scatterPoint[1]:
-                                newPoints.append([p[0], p[1] - diff])
-                            else:
-                                newPoints.append([p[0], p[1]])
-                    else:
-                        flag = other_plot.linspaceAbove(srt, channel, diff, flag)
-
-                        for i in range(len(other_plot.channels)):
-                            p = other_plot.channels[i]
-                            if p[1] > other_plot.channelsPlot.scatterPoint[1]:
-                                other_plot.channels[i] = [p[0], p[1] - diff]
-            elif line_point[1] > other_plot.channelsPlot.scatterPoint[1]:
-                diff = line_point[1] - other_plot.channelsPlot.scatterPoint[1]
-                newPoints = []
-
-                if len(pointsAdded) == 0:
-                    for p in other_plot.channels:
-                        newPoints.append([p[0], p[1] + diff])
-                else:
-                    srt = sorted(pointsAdded)
-                    greater = [t for t in pointsAdded if t > line_point[1]]
-                    less = [t for t in pointsAdded if t < line_point[1]]
-
-                    if len(less) > 0 and len(greater) > 0:
-                        flag = other_plot.linspaceBelow(srt, channel, diff, flag)
-                    elif len(greater) > 0 and len(less) == 0:
-                        flag = other_plot.linspaceBelow(srt, channel, diff, flag)
-
-                        for i in range(len(other_plot.channels)):
-                            p = other_plot.channels[i]
-                            if p[1] < other_plot.channelsPlot.scatterPoint[1]:
-                                other_plot.channels[i] = [p[0], p[1] + diff]
-                    else:
-                        for p in other_plot.channels:
-                            if p[1] >= other_plot.channelsPlot.scatterPoint[1]:
-                                newPoints.append([p[0], p[1] + diff])
-                            else:
-                                newPoints.append([p[0], p[1]])
-            
-            if flag:
-                other_plot.channels = newPoints
-            #if len(self.pointsAdded) == 1:
-            other_plot.channelsPlot.setData(pos=np.array(other_plot.channels, dtype=float), adj=np.array(other_plot.adj, dtype=int))
-
-        other_plot.linearSpacePoints(pointsAdded)
-        
-            pts = [[t, line_point[1]] for t in range(int(other_plot.channelsPlot.scatterPoint[0]), int(line_point[0]))]
-            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
-            other_plot.lineItems.append(h_line)
-        else:
-            pts = [[t, line_point[1]] for t in range(int(other_plot.channelsPlot.scatterPoint[0]), int(line_point[0]))]
-            diff = 0
-            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
-            other_plot.lineItems.append(h_line)
-
-        #self.pointsAdded.append(line_point[1])
-        
-        if line_point[1] in other_plot.coords:
-            other_plot.channelCoords[channel] = other_plot.coords[line_point[1]]
-
-        other_plot.pointsAdded.append(line_point[1])
-        #print(other_plot.coords[int(line_point[1])])
-        other_plot.linearSpacePoints()
-        
-        #print(self.channelCoords)
-        view = other_plot.image.getView()
-        view.addItem(h_line)
-        #h_line.setClickable(True)
-        h_line.sigClicked.connect(other_plot.removeLine)
-        """
-
-    """
-    def onclickProbe(self, plot, points):
-        print(len(self.channels))
-        line_point = points[0].pos()
-        #print(self.channels)
-        channel = self.channels.index([self.channelsPlot.scatterPoint[0], self.channelsPlot.scatterPoint[1]])
-        self.oldChannels.append(self.channels)
-        flag = True
-
-        if line_point[1] != self.channelsPlot.scatterPoint[1]:
-            if line_point[1] < self.channelsPlot.scatterPoint[1]:
-                #print('lower')
-                diff = abs(line_point[1] - self.channelsPlot.scatterPoint[1])
-                newPoints = []
-
-                if len(self.pointsAdded) == 0:
-                    for p in self.channels:
-                        newPoints.append([p[0], p[1] - diff])
-                else:
-                    srt = sorted(self.pointsAdded, reverse=True)
-                    greater = [t for t in self.pointsAdded if t > line_point[1]]
-                    less = [t for t in self.pointsAdded if t < line_point[1]]
-
-                    if len(less) > 0 and len(greater) > 0: # new alignment is between 2 exisiting, don't shift, just linearly interpolate
-                        flag = self.linspaceAbove(srt, channel, diff, flag)
-                    elif len(greater) > 0 and len(less) == 0: # new line is below exiting, so shift
-                        for p in self.channels:
-                            if p[1] <= self.channelsPlot.scatterPoint[1]:
-                                newPoints.append([p[0], p[1] - diff])
-                            else:
-                                newPoints.append([p[0], p[1]])
-                    else:
-                        flag = self.linspaceAbove(srt, channel, diff, flag)
-
-                        for i in range(len(self.channels)):
-                            p = self.channels[i]
-                            if p[1] > self.channelsPlot.scatterPoint[1]:
-                                self.channels[i] = [p[0], p[1] - diff]
-            elif line_point[1] > self.channelsPlot.scatterPoint[1]:
-                diff = line_point[1] - self.channelsPlot.scatterPoint[1]
-                newPoints = []
-
-                if len(self.pointsAdded) == 0:
-                    for p in self.channels:
-                        newPoints.append([p[0], p[1] + diff])
-                else:
-                    srt = sorted(self.pointsAdded)
-                    greater = [t for t in self.pointsAdded if t > line_point[1]]
-                    less = [t for t in self.pointsAdded if t < line_point[1]]
-
-                    if len(less) > 0 and len(greater) > 0:
-                        flag = self.linspaceBelow(srt, channel, diff, flag)
-                    elif len(greater) > 0 and len(less) == 0:
-                        flag = self.linspaceBelow(srt, channel, diff, flag)
-
-                        for i in range(len(self.channels)):
-                            p = self.channels[i]
-                            if p[1] < self.channelsPlot.scatterPoint[1]:
-                                self.channels[i] = [p[0], p[1] + diff]
-                    else:
-                        for p in self.channels:
-                            if p[1] >= self.channelsPlot.scatterPoint[1]:
-                                newPoints.append([p[0], p[1] + diff])
-                            else:
-                                newPoints.append([p[0], p[1]])
-            
-            if flag:
-                self.channels = newPoints
-            #if len(self.pointsAdded) == 1:
-            self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
-        
-            pts = [[t, line_point[1]] for t in range(int(self.channelsPlot.scatterPoint[0]), int(line_point[0]))]
-            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
-            self.lineItems.append(h_line)
-        else:
-            pts = [[t, line_point[1]] for t in range(int(self.channelsPlot.scatterPoint[0]), int(line_point[0]))]
-            diff = 0
-            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
-            self.lineItems.append(h_line)
-
-        #self.pointsAdded.append(line_point[1])
-
-        if line_point[1] in self.coords:
-            self.channelCoords[channel] = self.coords[line_point[1]]
-
-        self.pointsAdded.append(line_point[1])
-        print(self.coords[int(line_point[1])])
-        self.linearSpacePoints()
-        
-        #print(self.channelCoords)
-        view = self.image.getView()
-        view.addItem(h_line)
-        #h_line.setClickable(True)
-        h_line.sigClicked.connect(self.removeLine)
-
-        for plot in self.otherPlots:
-            print(plot.measurement)
-            self.updateAfterClick(plot, line_point, channel)
-    """
     def getAffineMatrix(self, direction='trv'):
         storage_directory = get_tc_info(self.mouseID)
 
@@ -567,51 +355,8 @@ class PlotDisplayItem():
 
             self.affine[-1][-1] = 1
 
-    # displays the region along the probe track
-    # probe: the probe to be displayed from the drop down
+    # scales the plots using the given scale factors below
     def updateDisplay(self, probe, linepts, intensity_values, keep_y=False, old_y=None, points_added=None):
-        """
-        x = self.probeAnnotations[self.probeAnnotations.probe_name == probe].ML 
-        y = self.probeAnnotations[self.probeAnnotations.probe_name == probe].DV 
-        
-        z = self.probeAnnotations[self.probeAnnotations.probe_name == probe].AP
-
-        # get trajectory
-        if len(z) > 0:
-            data = np.vstack((z,y,x)).T
-            datamean = data.mean(axis=0)
-
-            D = data - datamean
-            m1 = np.min(D[:,1]) * 2
-            m2 = np.max(D[:,1]) * 2
-            uu,dd,vv = np.linalg.svd(D)
-
-            linepts = vv[0] * np.mgrid[-530:600:1][:,np.newaxis]
-            linepts += datamean
-            
-            if linepts[-1,1] - linepts[0,1] < 0:
-                linepts = np.flipud(linepts)
-            
-        # extract region of image, build row cells containing image
-        intensity_values = np.zeros((linepts.shape[0],160))
-        self.coords = {}
-        self.linepts = linepts
-
-        for j in range(linepts.shape[0]):
-            self.coords[j] = (linepts[j, 0], linepts[j, 1], linepts[j, 2])
-
-            for k in range(-80,80):
-                try:
-                    intensity_values[j,k+80] = (self.volumeImage[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
-                except IndexError:
-                    pass
-        """
-        # display image
-        #intensity_values *= 2.
-        #self.trigScale = intensity_values.shape[0] / intensity_values.shape[1] 
-        
-        #print(intensity_values.shape)
-        
         if not keep_y:
             self.trigScale = np.linalg.norm(linepts[-1] - linepts[0]) / intensity_values.shape[0]
             #self.trigScale = 1
@@ -621,37 +366,20 @@ class PlotDisplayItem():
             ap_scale = 1
             dv_scale = 1/0.94
             lr_scale = 1
-            """
-            self.dz = (linepts[-1, 0] - linepts[0, 0])
-            print('DZ', self.dz)
-            self.dy = (linepts[-1, 1] - linepts[0, 1])
-            print('DY', self.dy)
-            self.dx = (linepts[-1, 2] - linepts[0, 2])
-            print('DX', self.dx)
-            self.vector = np.array([self.dz, self.dy, self.dx, 1])
-            print('Affine Determinant', np.linalg.det(self.affine))
-            det = np.linalg.det(self.affine)
-            self.vectorPrime = self.affine.dot(self.vector)
-            self.affScale = np.linalg.norm(self.vectorPrime[0:3]) / np.linalg.norm(self.vector)
-            #self.affScale = 1
-            print('Aff Scale', self.affScale)
-
-            self.scale = 3840 / (self.trigScale * (10 / self.affScale))
-            self.scale /= 10
-            print('Scale', self.scale)
-            channels_scale = np.linspace(0, self.scale, 384)
-            """
-
+ 
+            # get vectors in xyz
             self.dz = (linepts[-1, 0] - linepts[0, 0])
             self.dy = (linepts[-1, 1] - linepts[0, 1])
             self.dx = (linepts[-1, 2] - linepts[0, 2])
             self.vector = np.array([self.dz, self.dy, self.dx])
             
+            # apply scale
             self.dzScale = self.dz * ap_scale
             self.dyScale = self.dy * dv_scale
             self.dxScale = self.dx * lr_scale
             self.vectorScale = np.array([self.dzScale, self.dyScale, self.dxScale])
 
+            # get scale factor
             self.scale = np.linalg.norm(self.vectorScale) / np.linalg.norm(self.vector)
             #print(self.scale)
             #channels_scale = np.linspace(0, self.scale, 384)
@@ -665,8 +393,8 @@ class PlotDisplayItem():
             self.channels = newPoints
             self.adj = [[i, i + 1] for i in range(len(self.channelsOriginal) - 1)]
             self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
-        else:
-            newPoints = []
+        else: # some alignment has been done already, so use existing coordinates
+            newPoints = [] 
             for i in range(len(self.channelsOriginal)):
                 newPoints.append([self.channelsOriginal[i][0], old_y[i][1]])
 
@@ -675,26 +403,6 @@ class PlotDisplayItem():
             self.adj = [[i, i + 1] for i in range(len(self.channelsOriginal) - 1)]
             self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
             self.linearSpacePoints(points_added)
-
-        """
-        self.volArray = self.getColorVolume(intensity_values)
-        print(self.volArray.shape)
-        
-        self.volArray *= 2
-        rot = np.rot90(self.volArray)
-        flip = np.flipud(rot)
-      
-        self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
-        view = self.image.getView()
-
-        self.points = [[100, t] for t in range(j)]
-        self.plItem = pg.ScatterPlotItem(pos=self.points, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')))
-        #self.plItem.setClickable(True)
-        self.plItem.sigClicked.connect(self.onclickProbe)
-        view.addItem(self.channelsPlot)
-        view.addItem(self.plItem)
-        view.addItem(self.textItem)
-        """
 
 class VolumeAlignment(QWidget):
     def __init__(self, mouse_id):
@@ -707,14 +415,18 @@ class VolumeAlignment(QWidget):
         
         self.basePath = pathlib.Path('//allen/programs/mindscope/workgroups/np-exp')
         self.waveMetricsPath = generate_metrics_path_days(self.basePath, self.mouseID)
+        self.days = sorted(list(self.waveMetricsPath.keys()))
+
         self.initUI()
+        self.displayRegion()
     
     def initUI(self):
         self.setWindowTitle(self.title)
         self.width = int(4000) #default = coronal view
         self.height = int(4000)
         self.remove = True
-        self.show = True
+        self.showProbe = True
+        self.showMask = True
         self.prevProbe = ''
 
         im8 = np.ones((self.height,self.width),dtype='uint8')*255
@@ -723,6 +435,12 @@ class VolumeAlignment(QWidget):
         self.image.ui.roiBtn.hide()
         self.image.ui.menuBtn.hide()
         self.image.setObjectName('image')
+
+        self.imageMask = pg.image(im8)
+        self.imageMask.ui.histogram.hide()
+        self.imageMask.ui.roiBtn.hide()
+        self.imageMask.ui.menuBtn.hide()
+        self.imageMask.setObjectName('image')
         #self.image.setImage(im8.transpose())
 
         self.pointsAdded = []
@@ -731,6 +449,9 @@ class VolumeAlignment(QWidget):
         self.oldChannels = [] # stack for undoing lines
         self.distPoints = []
         self.distItems = []
+        self.s = []
+        self.pos = []
+        self.myFont = ImageFont.truetype('arial.ttf', 20)
 
         # important directories
         self.workingDirectory = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte')
@@ -741,14 +462,27 @@ class VolumeAlignment(QWidget):
         self.field_file = pathlib.Path('/{}'.format(self.field_path))
         print(self.field_file)
         self.reference_file = os.path.join( self.modelDirectory, 'average_template_25.nrrd')
+        
+        with open(os.path.join(self.workingDirectory, 'field_reference', 'name_map.pkl'), 'rb') as f:
+            self.name_map = pickle.load(f)
+        with open(os.path.join(self.workingDirectory, 'field_reference', 'acrnm_map.pkl'), 'rb') as f:
+            self.acrnm_map = pickle.load(f)
+        with open(os.path.join(self.workingDirectory, 'field_reference', 'color_map.pkl'), 'rb') as f:
+            self.colormap = pickle.load(f)
+        self.anno = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.workingDirectory, 'field_reference', 'ccf_ano.mhd')))
 
         self.reference = sitk.ReadImage( self.reference_file )
-        self.field = sitk.ReadImage( self.field_file )
+        self.field = sitk.ReadImage( self.field_file, sitk.sitkVectorFloat64)
+        self.dfmfld_transform = sitk.DisplacementFieldTransform(self.field)
 
         self.probeAnnotations = pd.read_csv(os.path.join(self.storageDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
         self.volumeRed = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, 'resampled_red.mhd'))).T
         self.volumeGreen = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, 'resampled_green.mhd'))).T
         self.volumeBlue = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, 'resampled_blue.mhd'))).T
+
+        self.volCCFRed = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, '25_micron', 'resampled_red.mhd'))).T
+        self.volCCFGreen = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, '25_micron', 'resampled_green.mhd'))).T
+        self.volCCFBlue = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, '25_micron', 'resampled_blue.mhd'))).T
 
         self.metricsList = ['Spread', 'Amplitude', 'Cumulative_Drift', 'Velocity_Above', 'Velocity_Below']
 
@@ -777,6 +511,7 @@ class VolumeAlignment(QWidget):
 
         
         self.imageLayout.addWidget(self.image)
+        self.imageLayout.addWidget(self.imageMask)
 
         self.probes = self.probeAnnotations['probe_name'].unique()
         self.probeLetters = [s[s.index(' ')+1:][0] for s in self.probes]
@@ -816,6 +551,10 @@ class VolumeAlignment(QWidget):
         self.calcDistanceButton = QPushButton('Calculate Probe Distance')
         self.calcDistanceButton.clicked.connect(self.calcDistance)
 
+        self.viewCCFButton = QPushButton('Toggle Mask')
+        self.viewCCFButton.clicked.connect(self.toggleCCFRegions)
+        self.showCCF = False
+
         self.warpButton = QPushButton('Warp to CCF')
         self.warpButton.clicked.connect(self.warpChannels)
 
@@ -825,7 +564,9 @@ class VolumeAlignment(QWidget):
         #self.probeViewLayout.addWidget(self.toggleProbeButton)
         self.probeViewLayout.addWidget(self.viewButton)
         self.probeViewLayout.addWidget(self.resetPlotButton)
+        self.probeViewLayout.addWidget(self.toggleProbeButton)
         self.probeViewLayout.addWidget(self.calcDistanceButton)
+        self.probeViewLayout.addWidget(self.viewCCFButton)
         self.probeViewLayout.addWidget(self.redCheck)
         self.probeViewLayout.addWidget(self.greenCheck)
 
@@ -837,40 +578,121 @@ class VolumeAlignment(QWidget):
         self.setLayout(self.mainLayout)
         self.showMaximized()
 
+    # hides/shows the red channel of the volume
     def toggleRed(self):
-        if not self.isRedChecked:
+        if not self.isRedChecked: # hide red channel
             self.redOld = self.volArray[:, :, 0].copy()
             self.volArray[:, :, 0] = 0
-            rot = np.rot90(self.volArray)
-            flip = np.flipud(rot)
-      
-            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
             self.isRedChecked = True
-        else:
+
+            if not self.showMask:
+                rot = np.rot90(self.volArray)
+                flip = np.flipud(rot)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            else:
+                im = Image.fromarray(self.volArray)
+                overlay = Image.blend(im, self.mask, 0.3)
+                #overlay.show()
+
+                draw = ImageDraw.Draw(overlay)
+
+                for label in self.labels_pos:
+                    positions = self.labels_pos[label]
+                    centroid = np.array(positions).mean(axis=0)
+                    draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
+
+                self.blended = np.array(overlay)
+                rot = np.rot90(self.blended)
+                flip = np.flipud(rot)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+        else: # show red channel
             self.volArray[:, :, 0] = self.redOld.copy()
-            rot = np.rot90(self.volArray)
-            flip = np.flipud(rot)
-      
-            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
             self.isRedChecked = False
 
+            if not self.showMask:
+                rot = np.rot90(self.volArray)
+                flip = np.flipud(rot)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            else:
+                im = Image.fromarray(self.volArray)
+                overlay = Image.blend(im, self.mask, 0.3)
+                #overlay.show()
+                draw = ImageDraw.Draw(overlay)
+
+                for label in self.labels_pos:
+                    positions = self.labels_pos[label]
+                    centroid = np.array(positions).mean(axis=0)
+                    draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
+
+                self.blended = np.array(overlay)
+                rot = np.rot90(self.blended)
+                flip = np.flipud(rot)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+
+    # hides/shows the green channel of the volume
     def toggleGreen(self):
         if not self.isGreenChecked:
             self.greenOld = self.volArray[:, :, 1].copy()
             self.volArray[:, :, 1] = 0
-            rot = np.rot90(self.volArray)
-            flip = np.flipud(rot)
-      
-            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
             self.isGreenChecked = True
+
+            if not self.showMask:
+                rot = np.rot90(self.volArray)
+                flip = np.flipud(rot)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            else:
+                im = Image.fromarray(self.volArray)
+                overlay = Image.blend(im, self.mask, 0.3)
+                #overlay.show()
+
+                draw = ImageDraw.Draw(overlay)
+
+                for label in self.labels_pos:
+                    positions = self.labels_pos[label]
+                    centroid = np.array(positions).mean(axis=0)
+                    draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
+
+                self.blended = np.array(overlay)
+                rot = np.rot90(self.blended)
+                flip = np.flipud(rot)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
         else:
             self.volArray[:, :, 1] = self.greenOld.copy()
-            rot = np.rot90(self.volArray)
-            flip = np.flipud(rot)
-      
-            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
             self.isGreenChecked = False
 
+            if not self.showMask:
+                rot = np.rot90(self.volArray)
+                flip = np.flipud(rot)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            else:
+                im = Image.fromarray(self.volArray)
+                overlay = Image.blend(im, self.mask, 0.3)
+                #overlay.show()
+
+                draw = ImageDraw.Draw(overlay)
+
+                for label in self.labels_pos:
+                    positions = self.labels_pos[label]
+                    centroid = np.array(positions).mean(axis=0)
+                    draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
+
+                self.blended = np.array(overlay)
+                rot = np.rot90(self.blended)
+                flip = np.flipud(rot)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+
+    # hides/shows the probe trajectory
+    def toggleProbe(self):
+        view = self.image.getView()
+
+        if self.showProbe:
+            view.removeItem(self.plItem)
+            self.showProbe = False
+        else:
+            view.addItem(self.plItem)
+            self.showProbe = True
+
+    # calculates the euclidean distance between 2 consecutive points annotated on the probe
     def calcDistance(self):
         sorted_dist = sorted(self.distPoints, key=lambda x: x[1])
         for i in range(len(sorted_dist) - 1):
@@ -878,6 +700,7 @@ class VolumeAlignment(QWidget):
             popup.setText('{} Distance in mm {:.2f}'.format(self.probeDropDown.currentText(), np.linalg.norm(sorted_dist[i] - sorted_dist[i + 1]) / 100))
             popup.exec_()
 
+    # resets the plots
     def resetPlot(self):
         self.plots['unit_density'].resetPlot()
         self.plots[self.metrics.currentText().lower()].resetPlot()
@@ -889,10 +712,9 @@ class VolumeAlignment(QWidget):
         for item in self.distItems:
             view.removeItem(item)
 
-        """
-        if hasattr(self, 'plItem'):
+        if hasattr(self, 'plItem') and self.prevProbe != self.probeDropDown.currentText():
             view.removeItem(self.plItem)
-        """
+        
         self.distPoints.clear()
         self.lineItems.clear()
         self.pointsAdded.clear()
@@ -908,6 +730,7 @@ class VolumeAlignment(QWidget):
             view.addItem(self.plItem)
             self.show = True
 
+    # helper function to display the sliced volume that the probe goes through
     def getColorVolume(self, rgb_levels=DEFAULT_COLOR_VALUES):
         level_adjusted_arrays = []
         for colori, int_level in zip(['red', 'green', 'blue'], rgb_levels):
@@ -936,7 +759,7 @@ class VolumeAlignment(QWidget):
 
             #print(coord)
             channel_dict['AP'].append(coord[0])
-            channel_dict['DV'].append(coord[1] * (3840 / (100 * self.plots['unit_density'].affScale)))
+            channel_dict['DV'].append(coord[1] * (1 / 0.94))
             channel_dict['ML'].append(coord[2])
 
         probe_name = self.probeDropDown.currentText()
@@ -946,7 +769,26 @@ class VolumeAlignment(QWidget):
         
         warp_channels(self.storageDirectory, df_channel, self.field, self.reference, self.probeDropDown.currentText(), self.mouseID, channels)
 
+    # function called when the drop down for the metric changes
+    # updates the plots to get the metrics file for the corresponding probe and day
     def metricChanged(self):
+        print('Metric changed')
+        probe = self.probeDropDown.currentText()
+        metric = self.metrics.currentText().lower()
+        view = self.image.getView()
+        
+        self.plots[metric].generateMetrics(metric.lower())
+
+        if hasattr(self, 'linepts'):
+            self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues, keep_y=True, old_y=self.plots[self.oldMetric].channels, points_added=self.pointsAdded)
+
+        if hasattr(self, 'oldMetric'):
+            view.removeItem(self.plots[self.oldMetric].channelsPlot)
+            view.addItem(self.plots[metric].channelsPlot)
+
+        self.oldMetric = metric.lower()
+
+        """
         probe = self.probeDropDown.currentText()
         metric = self.metrics.currentText().lower()
 
@@ -962,13 +804,18 @@ class VolumeAlignment(QWidget):
         for p in paths:
             if 'probe' + probe_let_num[0] in p:
                 path = p
+                break
 
         self.plots[metric].updateMetrics(path)
         #self.plots[metric].resetPlot(remove_probe=True)
         if hasattr(self, 'linepts'):
             self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues, keep_y=True, old_y=self.plots[self.oldMetric].channels, points_added=self.pointsAdded)
         self.oldMetric = metric.lower()
-        self.updateDisplay(probe)
+        #self.updateDisplay(probe)
+
+        view.addItem(self.plots['unit_density'].channelsPlot)
+        view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot)
+        """
 
     # displays the region of interest surrounding the probe track
     def displayRegion(self):
@@ -980,48 +827,28 @@ class VolumeAlignment(QWidget):
                 self.resetPlot()
             self.updateDisplay(probe)
             probe_let_num = probe[probe.index(' ')+1:]
-            days = sorted(list(self.waveMetricsPath.keys()))
 
-            key = days[int(probe_let_num[1]) - 1]
+            key = self.days[int(probe_let_num[1]) - 1]
             paths = self.waveMetricsPath[key]
 
             for p in paths:
                 if 'probe' + probe_let_num[0] in p:
-                    path = p
+                    self.path = p
+                    break
 
 
             #for plot in self.plots:
-            self.plots['unit_density'].updateMetrics(path)
+            self.plots['unit_density'].updateMetrics(self.path)
             #self.plots['unit_density'].resetPlot(remove_probe=True)
             self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues)
 
             #for plot in self.plots:
-            self.plots[metric].updateMetrics(path)
+            self.plots[metric].updateMetrics(self.path)
             #self.plots[metric].resetPlot(remove_probe=True)
             self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues)
 
             self.prevProbe = probe
             self.oldMetric = metric.lower()
-        """
-        elif self.prevProbe == probe: # just update with new metric
-            view = self.image.getView()
-            view.removeItem(self.plots[self.oldMetric].channelsPlot)
-
-            #self.updateDisplay(probe)
-            probe_let_num = probe[probe.index(' ')+1:]
-            days = sorted(list(self.waveMetricsPath.keys()))
-            key = days[int(probe_let_num[1]) - 1]
-            paths = self.waveMetricsPath[key]
-            for p in paths:
-                if 'probe' + probe_let_num[0] in p:
-                    path = p
-
-            self.plots[metric].updateMetrics(path)
-            #self.plots[metric].resetPlot(remove_probe=True)
-            self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues, keep_y=True, old_y=self.plots[self.oldMetric].channels, points_added=self.pointsAdded)
-            self.oldMetric = metric.lower()
-            self.updateDisplay(probe)
-        """
 
     def removeLineHelper(self, y_coord, ind):
         view = self.image.getView()
@@ -1030,11 +857,6 @@ class VolumeAlignment(QWidget):
         self.lineItems.remove(item)
         self.pointsAdded.remove(y_coord)
 
-        """
-        if len(self.pointsAdded) == 0:
-            self.plots['unit_density'].channels = self.plots['unit_density'].ogPoints
-            self.plots[self.metrics.currentText().lower()].channels = self.plots[self.metrics.currentText().lower()].ogPoints
-        """
         self.plots['unit_density'].channelsPlot.setData(pos=np.array(self.plots['unit_density'].channels, dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
         self.plots[self.metrics.currentText().lower()].channelsPlot.setData(pos=np.array(self.plots[self.metrics.currentText().lower()].channels, dtype=float), 
                                                                             adj=np.array(self.plots[self.metrics.currentText().lower()].adj, dtype=int))
@@ -1125,7 +947,7 @@ class VolumeAlignment(QWidget):
         flag = True
 
         if line_point[1] != click_plot.channelsPlot.scatterPoint[1]:
-            if line_point[1] < click_plot.channelsPlot.scatterPoint[1]:
+            if line_point[1] < click_plot.channelsPlot.scatterPoint[1]: # alignment is above currently clicked channel
                 #print('lower')
                 diff = abs(line_point[1] - click_plot.channelsPlot.scatterPoint[1])
                 newPoints = []
@@ -1140,20 +962,20 @@ class VolumeAlignment(QWidget):
 
                     if len(less) > 0 and len(greater) > 0: # new alignment is between 2 exisiting, don't shift, just linearly interpolate
                         flag = click_plot.linspaceAbove(srt, channel, diff, flag)
-                    elif len(greater) > 0 and len(less) == 0: # new line is below exiting, so shift
+                    elif len(greater) > 0 and len(less) == 0: # new line is below existing, so shift
                         for p in click_plot.channels:
                             if p[1] <= click_plot.channelsPlot.scatterPoint[1]:
                                 newPoints.append([p[0], p[1] - diff])
                             else:
                                 newPoints.append([p[0], p[1]])
-                    else:
+                    else: # new line is above so shift and linearly interpolate
                         flag = click_plot.linspaceAbove(srt, channel, diff, flag)
 
                         for i in range(len(click_plot.channels)):
                             p = click_plot.channels[i]
                             if p[1] > click_plot.channelsPlot.scatterPoint[1]:
                                 click_plot.channels[i] = [p[0], p[1] - diff]
-            elif line_point[1] > click_plot.channelsPlot.scatterPoint[1]:
+            elif line_point[1] > click_plot.channelsPlot.scatterPoint[1]: # alignment is below currently clicked channel
                 diff = line_point[1] - click_plot.channelsPlot.scatterPoint[1]
                 newPoints = []
 
@@ -1165,16 +987,16 @@ class VolumeAlignment(QWidget):
                     greater = [t for t in self.pointsAdded if t > line_point[1]]
                     less = [t for t in self.pointsAdded if t < line_point[1]]
 
-                    if len(less) > 0 and len(greater) > 0:
+                    if len(less) > 0 and len(greater) > 0: # new alignment is between 2 existing, don't shift, just linearly interpolate
                         flag = click_plot.linspaceBelow(srt, channel, diff, flag)
-                    elif len(greater) > 0 and len(less) == 0:
+                    elif len(greater) > 0 and len(less) == 0: # new alignment is above, so shift and linearly interpolate
                         flag = click_plot.linspaceBelow(srt, channel, diff, flag)
 
                         for i in range(len(click_plot.channels)):
                             p = click_plot.channels[i]
                             if p[1] < click_plot.channelsPlot.scatterPoint[1]:
                                 click_plot.channels[i] = [p[0], p[1] + diff]
-                    else:
+                    else: # new alignment is below, so just shift
                         for p in click_plot.channels:
                             if p[1] >= click_plot.channelsPlot.scatterPoint[1]:
                                 newPoints.append([p[0], p[1] + diff])
@@ -1214,7 +1036,7 @@ class VolumeAlignment(QWidget):
         h_line.sigClicked.connect(self.removeLine)
 
     def onclickProbe(self, plot, points):
-        if not self.plots['unit_density'].channelsPlot.clicked and not self.plots[self.metrics.currentText().lower()].channelsPlot.clicked:
+        if not self.plots['unit_density'].channelsPlot.clicked and not self.plots[self.metrics.currentText().lower()].channelsPlot.clicked: # for distance calculation
             line_point = points[0].pos()
             pt = pg.ScatterPlotItem(pos=[[line_point[0], line_point[1]]], pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=5)
             self.distItems.append(pt)
@@ -1231,10 +1053,44 @@ class VolumeAlignment(QWidget):
 
             self.plots['unit_density'].channelsPlot.clicked = False
             self.plots[self.metrics.currentText().lower()].channelsPlot.clicked = False
+    
+    # backspace key
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Left:
+            popped = self.lineItems.pop(-1)
+            view = self.image.getView()
+            view.removeItem(popped)
+
+    # toggles the mask 
+    def toggleCCFRegions(self):
+        if self.showMask:
+            rot = np.rot90(self.volArray)
+            flip = np.flipud(rot)
+            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            self.showMask = False
+        else:
+            im = Image.fromarray(self.volArray)
+            overlay = Image.blend(im, self.mask, 0.3)
+            #overlay.show()
+
+            draw = ImageDraw.Draw(overlay)
+
+            for label in self.labels_pos:
+                positions = self.labels_pos[label]
+                centroid = np.array(positions).mean(axis=0)
+                draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
+
+            self.blended = np.array(overlay)
+            rot = np.rot90(self.blended)
+            flip = np.flipud(rot)
+            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            self.showMask = True
 
     # displays the region along the probe track
-    # probe: the probe to be displayed from the drop down
+    # probe: string, the probe to be displayed from the drop down
     def updateDisplay(self, probe):
+        self.showMask = True
+        self.showProbe = True
         #print('Probe', probe)
         x = self.probeAnnotations[self.probeAnnotations.probe_name == probe].ML 
         y = self.probeAnnotations[self.probeAnnotations.probe_name == probe].DV 
@@ -1242,7 +1098,7 @@ class VolumeAlignment(QWidget):
         z = self.probeAnnotations[self.probeAnnotations.probe_name == probe].AP
 
         # get trajectory
-        if len(z) > 0:
+        if len(z) > 0: # 
             data = np.vstack((z,y,x)).T
             datamean = data.mean(axis=0)
 
@@ -1257,53 +1113,156 @@ class VolumeAlignment(QWidget):
             if linepts[-1,1] - linepts[0,1] < 0:
                 linepts = np.flipud(linepts)
             
+        print(linepts.shape[0])
         # extract region of image, build row cells containing image
         intensity_values_red = np.zeros((linepts.shape[0],160))
         intensity_values_green = np.zeros((linepts.shape[0],160))
         intensity_values_blue = np.zeros((linepts.shape[0],160))
 
+        # for mask displayign regions
+        intensity_ccf_red = np.zeros((linepts.shape[0],160))
+        intensity_ccf_green = np.zeros((linepts.shape[0],160))
+        intensity_ccf_blue = np.zeros((linepts.shape[0],160))
+        #volume_warp = np.zeros((528, 320, 456))
+
         self.coords = {}
         self.linepts = linepts
         self.intensityValues = intensity_values_red
+        coords_int = {}
+        self.labels_pos = {}
+        keys = list(self.acrnm_map.keys())
+        values = list(self.acrnm_map.values())
 
         for j in range(linepts.shape[0]):
             self.coords[j] = (linepts[j, 0], linepts[j, 1], linepts[j, 2])
 
-            for k in range(-80,80):
+            for k in range(-80,80): # build slice that probe cuts through
                 try:
+                    #point = [[int(np.round(linepts[j, 0] / 2.5)), int(np.round(linepts[j, 1] / 2.5)), int(np.round((linepts[j, 2]+k) / 2.5))]]
+                    #warp_point = np.array(list(map(self.dfmfld_transform.TransformPoint,point)))
+
+                    ccf_point = [int(np.round(linepts[j, 0] / 2.5)), int(np.round(linepts[j, 1] / 2.5)), int(np.round((linepts[j, 2]+k) / 2.5))]
                     intensity_values_red[j,k+80] = (self.volumeRed[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
                     intensity_values_green[j,k+80] = (self.volumeGreen[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
                     intensity_values_blue[j,k+80] = (self.volumeBlue[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
+                    coords_int[(j, k+80)] = ccf_point
 
+                    struct = self.anno[ccf_point[0], ccf_point[1], ccf_point[2]]
+
+                    if struct in values:
+                        ind = values.index(struct)
+                        key = keys[ind]
+
+                        if not key[0].islower():
+                            """
+                            parent_struct = self.tree.parents([struct])
+                            closest_parent = parent_struct[0]['structure_id_path'][-1]
+                            parent_ind = values.index(closest_parent)
+                            parent_key = keys[parent_ind]
+                            """
+                            if key in self.labels_pos:
+                                self.labels_pos[key].append((j, k+80))
+                            else:
+                                self.labels_pos[key] = [(j, k+80)]
+                    
+                    #struct = self.anno[int(np.round(warp_point[0][2] * 1.25)), int(np.round(warp_point[0][1] * 1.25)), int(np.round(warp_point[0][0] * 1.25))]
+                    #struct = self.anno[int(np.round(linepts[j, 0] / 2.5)), int(np.round(linepts[j, 1]) / 2.5), int(np.round(linepts[j, 2]+k / 2.5))]
+                    
+                    """
+                    #print(warp_point)
+                    if struct in self.colormap:
+                        intensity_ccf_red[j,k+80] = self.colormap[struct][0]
+                        intensity_ccf_green[j,k+80] = self.colormap[struct][1]
+                        intensity_ccf_blue[j,k+80] = self.colormap[struct][2]
+                    """
                 except IndexError:
                     pass
-        
-        # display image
-        #intensity_values *= 2.
-        #self.trigScale = intensity_values.shape[0] / intensity_values.shape[1] 
+
+        self.s.clear()
+        self.pos.clear()
+
+        for row in range(linepts.shape[0]):
+            for col in range(160):
+                point = coords_int[(row, col)]
+                struct = self.anno[point[0], point[1], point[2]]
+
+                if struct in self.colormap:
+                    intensity_ccf_red[row,col] = self.colormap[struct][0]
+                    intensity_ccf_green[row,col] = self.colormap[struct][1]
+                    intensity_ccf_blue[row,col] = self.colormap[struct][2]
+                    """
+                    ind = values.index(struct)
+                    key = keys[ind]
+
+                    if key not in self.s:
+                        self.s.append(key)
+                        self.pos.append([row, col])
+                    """            
+                    
+        # volume that probe cuts through
         self.int_arrays = {}
         self.int_arrays['red'] = intensity_values_red
         self.int_arrays['green'] = intensity_values_green
         self.int_arrays['blue'] = intensity_values_blue
         self.volArray = self.getColorVolume()
-        #print(self.volArray.shape)
+        print(self.volArray.shape)
+
+        level_arrays = []
+        level_arrays.append(intensity_ccf_red)
+        level_arrays.append(intensity_ccf_green)
+        level_arrays.append(intensity_ccf_blue)
+
+        # mask of ccf regions 
+        mask = np.stack(level_arrays, axis=-1)
+        print(mask.shape)
+
+        self.mask = Image.fromarray(mask.astype(np.uint8))
+        im = Image.fromarray(self.volArray)
+        # Custom font style and font size
+
+        overlay = Image.blend(im, self.mask, 0.3)
+        draw = ImageDraw.Draw(overlay)
+        draw_mask = ImageDraw.Draw(self.mask)
+
+        """
+        for i in range(len(self.pos)):
+            draw.text((self.pos[i][1], self.pos[i][0]), self.s[i], font=self.myFont, fill=(255, 255, 255))
+        """
+        for label in self.labels_pos:
+            positions = self.labels_pos[label]
+            centroid = np.array(positions).mean(axis=0)
+            draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
+            draw_mask.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
+
+        #overlay.show()
         
+        self.blended = np.array(overlay)
+
+        
+        #print(self.volArray.shape)
+
+        # modify based on if red and green channel toggle have been checked or not
         if self.isRedChecked:
-            self.redOld = self.volArray[:, :, 0].copy()
-            self.volArray[:, :, 0] = 0
+            self.redOld = self.blended[:, :, 0].copy()
+            self.blended[:, :, 0] = 0
 
         if self.isGreenChecked:
-            self.greenOld = self.volArray[:, :, 1].copy()
-            self.volArray[:, :, 1] = 0
+            self.greenOld = self.blended[:, :, 1].copy()
+            self.blended[:, :, 1] = 0
 
+        
+        #self.volArray = np.array(vol_mask)
         #self.volArray *= 2
-        rot = np.rot90(self.volArray)
+        rot = np.rot90(self.blended)
         flip = np.flipud(rot)
+        rot_mask = np.rot90(self.mask)
+        flip_mask = np.flipud(rot_mask)
 
+        self.imageMask.setImage(flip_mask, levels=(0, 255), autoRange=False)
         self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
         view = self.image.getView()
 
-        self.points = [[90, t] for t in range(j)]
+        self.points = [[81, t] for t in range(j)]
         self.plItem = pg.ScatterPlotItem(pos=self.points, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')))
         #self.plItem.setClickable(True)
         self.plItem.sigClicked.connect(self.onclickProbe)
@@ -1322,5 +1281,5 @@ if __name__ == '__main__':
     mouse_id = args.mouseID
 
     app = QApplication(sys.argv)
-    w = VolumeAlignment(mouse_id)
+    v = VolumeAlignment(mouse_id)
     sys.exit(app.exec_())
