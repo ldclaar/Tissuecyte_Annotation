@@ -593,7 +593,7 @@ class VolumeAlignment(QWidget):
 
     def showMaskHelper(self):
         im = Image.fromarray(self.volArray)
-        overlay = Image.blend(im, self.mask, 0.3)
+        overlay = Image.blend(im, self.mask, 0.5)
         #overlay.show()
 
         draw = ImageDraw.Draw(overlay)
@@ -1088,21 +1088,7 @@ class VolumeAlignment(QWidget):
             self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
             self.showMask = False
         else:
-            im = Image.fromarray(self.volArray)
-            overlay = Image.blend(im, self.mask, 0.3)
-            #overlay.show()
-
-            draw = ImageDraw.Draw(overlay)
-
-            for label in self.labels_pos:
-                positions = self.labels_pos[label]
-                centroid = np.array(positions).mean(axis=0)
-                draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
-
-            self.blended = np.array(overlay)
-            rot = np.rot90(self.blended)
-            flip = np.flipud(rot)
-            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            self.showMaskHelper()
             self.showMask = True
     """
     # displays the region along the probe track
@@ -1190,7 +1176,7 @@ class VolumeAlignment(QWidget):
     # displays the region along the probe track
     # probe: string, the probe to be displayed from the drop down
     def updateDisplay(self, probe, restore=False):
-        self.showMask = True
+        self.showMask = False
         self.showProbe = True
         #print('Probe', probe)
         x = self.probeAnnotations[self.probeAnnotations.probe_name == probe].ML 
@@ -1320,17 +1306,17 @@ class VolumeAlignment(QWidget):
 
         # modify based on if red and green channel toggle have been checked or not
         if self.isRedChecked:
-            self.redOld = self.blended[:, :, 0].copy()
-            self.blended[:, :, 0] = 0
+            self.redOld = self.volArray[:, :, 0].copy()
+            self.volArray[:, :, 0] = 0
 
         if self.isGreenChecked:
-            self.greenOld = self.blended[:, :, 1].copy()
-            self.blended[:, :, 1] = 0
+            self.greenOld = self.volArray[:, :, 1].copy()
+            self.volArray[:, :, 1] = 0
 
         
         #self.volArray = np.array(vol_mask)
         #self.volArray *= 2
-        rot = np.rot90(self.blended)
+        rot = np.rot90(self.volArray)
         flip = np.flipud(rot)
         rot_mask = np.rot90(self.mask)
         flip_mask = np.flipud(rot_mask)
