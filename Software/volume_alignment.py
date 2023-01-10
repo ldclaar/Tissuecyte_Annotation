@@ -1,3 +1,4 @@
+from tkinter import N
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,7 +20,7 @@ from warp_image import warp_channels
 import xmltodict
 from generate_metrics_paths import generate_metrics_path_days
 import visvis as vis
-from warp_image import warp_execute
+from warp_image import warp_execute, cluster_annotations
 import pickle
 from PIL import Image
 from PIL import ImageDraw
@@ -129,17 +130,14 @@ class PlotDisplayItem():
 
         self.probeAnnotations = probe_annotations
         self.mouseID = mouse_id
-        self.pointsAdded = []
-        self.channelCoords = {}
-        self.lineItems = []
-        self.oldChannels = [] # stack for undoing lines
         self.waveform = waveform
         self.metrics = metrics
         self.metricsList = metrics_list
+        self.otherPlots = []
+        self.oldChannels = [] # stack for undoing lines
 
         self.waveform_metrics = self.waveform.merge(self.metrics, on='cluster_id')
         self.measurement = measurement
-        self.otherPlots = []
         #self.generateMetrics(measurement)
 
         self.channelsPlot = Graph()
@@ -175,16 +173,17 @@ class PlotDisplayItem():
             self.channelsOriginal = [[self.channelsOriginal[i][1] - 10, 384 - i - 1 + 256] for i in range(len(self.channelsOriginal))]
             
             x_val = [p[0] * 5 for p in self.channelsOriginal]
-            conv = np.ones(5)
+            conv = np.ones(10)
 
-            smoothed = np.convolve(x_val, conv, mode='same') / np.sum(conv)
+            smoothed = np.convolve(x_val, conv, mode='same')
+            smoothed = smoothed / np.sum(conv)
             self.channelsOriginal = [[smoothed[i], self.channelsOriginal[i][1]] for i in range(384)]
         elif self.measurement == 'spread':
             self.processMetrics()
             self.generateMetricChannels(measurement, scale_value=0, shift_value=200)
         elif self.measurement == 'firing_rate':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=1/2, shift_value=150)
         elif self.measurement == 'd_prime':
             self.processMetrics()
             self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
@@ -193,13 +192,19 @@ class PlotDisplayItem():
             self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
         elif self.measurement == 'velocity_above':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/30, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=150)
         elif self.measurement == 'velocity_below':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/30, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=150)
         elif self.measurement == 'amplitude':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=5, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=5, shift_value=200)
+        elif self.measurement == 'isi_viol':
+            self.processMetrics()
+            self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
+        elif self.measurement == 'nn_hit_rate':
+            self.processMetrics()
+            self.generateMetricChannels(measurement, scale_value=1/5, shift_value=150)
 
     # helper function to generate the metric channels
     # metric: string
@@ -211,10 +216,10 @@ class PlotDisplayItem():
         values = self.averageMetricsChannels[metric]
 
         if 'velocity' in metric:
-            values = values / values.abs().max()
             values = values / scale_value
+            #values = values / values.abs().max()
             values = values.to_numpy().tolist()
-            conv = np.ones(1)
+            conv = np.ones(10)
         else:
             conv = np.ones(10)
         #peak_values = [int(p) for p in peak_values]
@@ -223,14 +228,17 @@ class PlotDisplayItem():
         for i in range(384):
             if i in peak_values:
                 index = peak_values.index(i)
-                self.channelsOriginal.append([values[index], 384 - i - 1 + 256])
+                if not pd.isna(values[index]):
+                    self.channelsOriginal.append([values[index], 384 - i - 1 + 256])
+                else:
+                    self.channelsOriginal.append([0, 384 - i - 1 + 256])
                 #conv[index] = 1
             else:
                 self.channelsOriginal.append([0, 384 - i - 1 + 256])
         
-        
         x_val = [p[0] for p in self.channelsOriginal]
-        smoothed = np.convolve(x_val, conv, mode='same') / np.sum(conv)
+        smoothed = np.convolve(x_val, conv, mode='same')
+        smoothed = smoothed / np.sum(conv)
         #print(smoothed.shape)
         for i in range(384):
             if scale_value != 0 and 'velocity' not in metric:
@@ -238,10 +246,10 @@ class PlotDisplayItem():
             else:
                 self.channelsOriginal[i] = [(smoothed[i]) - shift_value, self.channelsOriginal[i][1]]
         
-
     def processMetrics(self):
         self.averageMetricsChannels = self.waveform_metrics.groupby('peak_channel').mean().reset_index()
         #self.averageMetricsChannels = self.averageMetricsChannels.rolling(rolling_value, win_type='boxcar').mean()
+
     # when a new probe is displayed
     def resetPlot(self, remove_probe=False):
         self.channels = self.channelsOriginal
@@ -451,7 +459,8 @@ class VolumeAlignment(QWidget):
         self.distItems = []
         self.s = []
         self.pos = []
-        self.myFont = ImageFont.truetype('arial.ttf', 20)
+        self.myFont = ImageFont.load_default() #ImageFont.truetype('arial.ttf', 20)
+        self.alignments = {}
 
         # important directories
         self.workingDirectory = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte')
@@ -463,6 +472,7 @@ class VolumeAlignment(QWidget):
         print(self.field_file)
         self.reference_file = os.path.join( self.modelDirectory, 'average_template_25.nrrd')
         
+        """
         with open(os.path.join(self.workingDirectory, 'field_reference', 'name_map.pkl'), 'rb') as f:
             self.name_map = pickle.load(f)
         with open(os.path.join(self.workingDirectory, 'field_reference', 'acrnm_map.pkl'), 'rb') as f:
@@ -470,11 +480,12 @@ class VolumeAlignment(QWidget):
         with open(os.path.join(self.workingDirectory, 'field_reference', 'color_map.pkl'), 'rb') as f:
             self.colormap = pickle.load(f)
         self.anno = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.workingDirectory, 'field_reference', 'ccf_ano.mhd')))
-
+        """
         self.reference = sitk.ReadImage( self.reference_file )
-        self.field = sitk.ReadImage( self.field_file, sitk.sitkVectorFloat64)
-        self.dfmfld_transform = sitk.DisplacementFieldTransform(self.field)
-
+        self.field = sitk.ReadImage( self.field_file)
+        self.probeAnnotations = pd.read_csv(os.path.join(self.storageDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
+        #self.dfmfld_transform = sitk.DisplacementFieldTransform(self.field)
+        """
         self.probeAnnotations = pd.read_csv(os.path.join(self.storageDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
         self.volumeRed = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, 'resampled_red.mhd'))).T
         self.volumeGreen = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, 'resampled_green.mhd'))).T
@@ -483,20 +494,22 @@ class VolumeAlignment(QWidget):
         self.volCCFRed = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, '25_micron', 'resampled_red.mhd'))).T
         self.volCCFGreen = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, '25_micron', 'resampled_green.mhd'))).T
         self.volCCFBlue = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, '25_micron', 'resampled_blue.mhd'))).T
-
-        self.metricsList = ['Spread', 'Amplitude', 'Cumulative_Drift', 'Velocity_Above', 'Velocity_Below']
+        """
+        self.metricsList = ['Spread', 'Amplitude', 'Isi_Viol', 'NN_Hit_Rate', 'Firing_Rate', 'Velocity_Above', 'Velocity_Below']
 
         self.unitPlot = PlotDisplayItem('unit_density', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.spreadPlot = PlotDisplayItem('spread', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        #self.firePlot = PlotDisplayItem('firing_rate', self.waveform, self.metrics, self.volumeImage, self.probeAnnotations, self.mouseID)
+        self.isiPlot = PlotDisplayItem('isi_viol', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
+        self.firePlot = PlotDisplayItem('firing_rate', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.velocityAbovePlot = PlotDisplayItem('velocity_above', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.velocityBelowPlot = PlotDisplayItem('velocity_below', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.ampPlot = PlotDisplayItem('amplitude', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
+        self.hitRatePlot = PlotDisplayItem('nn_hit_rate', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         #self.repolarPlot = PlotDisplayItem('repolarization_slope', self.waveform, self.metrics, self.volumeImage, self.probeAnnotations, self.mouseID)
         #self.dPrimePlot = PlotDisplayItem('d_prime', self.waveform, self.metrics, self.volumeImage, self.probeAnnotations, self.mouseID)
-        self.cumDriftPlot = PlotDisplayItem('cumulative_drift', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        self.plots = {'unit_density': self.unitPlot, 'spread': self.spreadPlot,'cumulative_drift': self.cumDriftPlot, 
-                      'velocity_above': self.velocityAbovePlot, 'velocity_below': self.velocityBelowPlot, 'amplitude': self.ampPlot}
+        #self.cumDriftPlot = PlotDisplayItem('cumulative_drift', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
+        self.plots = {'unit_density': self.unitPlot, 'spread': self.spreadPlot, 'velocity_above': self.velocityAbovePlot, 'firing_rate': self.firePlot,
+                      'velocity_below': self.velocityBelowPlot, 'amplitude': self.ampPlot, 'isi_viol': self.isiPlot, 'nn_hit_rate': self.hitRatePlot}
         
         for plot in self.plots:
             others = [k for k in self.plots if k != plot]
@@ -578,6 +591,23 @@ class VolumeAlignment(QWidget):
         self.setLayout(self.mainLayout)
         self.showMaximized()
 
+    def showMaskHelper(self):
+        im = Image.fromarray(self.volArray)
+        overlay = Image.blend(im, self.mask, 0.3)
+        #overlay.show()
+
+        draw = ImageDraw.Draw(overlay)
+
+        for label in self.labels_pos:
+            positions = self.labels_pos[label]
+            centroid = np.array(positions).mean(axis=0)
+            draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
+
+        self.blended = np.array(overlay)
+        rot = np.rot90(self.blended)
+        flip = np.flipud(rot)
+        self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+
     # hides/shows the red channel of the volume
     def toggleRed(self):
         if not self.isRedChecked: # hide red channel
@@ -585,26 +615,12 @@ class VolumeAlignment(QWidget):
             self.volArray[:, :, 0] = 0
             self.isRedChecked = True
 
-            if not self.showMask:
+            if not self.showMask: # mask is currently hidden
                 rot = np.rot90(self.volArray)
                 flip = np.flipud(rot)
                 self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
-            else:
-                im = Image.fromarray(self.volArray)
-                overlay = Image.blend(im, self.mask, 0.3)
-                #overlay.show()
-
-                draw = ImageDraw.Draw(overlay)
-
-                for label in self.labels_pos:
-                    positions = self.labels_pos[label]
-                    centroid = np.array(positions).mean(axis=0)
-                    draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
-
-                self.blended = np.array(overlay)
-                rot = np.rot90(self.blended)
-                flip = np.flipud(rot)
-                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            else: # bring back mask on to volume slice image
+                self.showMaskHelper()
         else: # show red channel
             self.volArray[:, :, 0] = self.redOld.copy()
             self.isRedChecked = False
@@ -614,48 +630,21 @@ class VolumeAlignment(QWidget):
                 flip = np.flipud(rot)
                 self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
             else:
-                im = Image.fromarray(self.volArray)
-                overlay = Image.blend(im, self.mask, 0.3)
-                #overlay.show()
-                draw = ImageDraw.Draw(overlay)
-
-                for label in self.labels_pos:
-                    positions = self.labels_pos[label]
-                    centroid = np.array(positions).mean(axis=0)
-                    draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
-
-                self.blended = np.array(overlay)
-                rot = np.rot90(self.blended)
-                flip = np.flipud(rot)
-                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+                self.showMaskHelper()
 
     # hides/shows the green channel of the volume
     def toggleGreen(self):
-        if not self.isGreenChecked:
+        if not self.isGreenChecked: # hide green
             self.greenOld = self.volArray[:, :, 1].copy()
             self.volArray[:, :, 1] = 0
             self.isGreenChecked = True
 
-            if not self.showMask:
+            if not self.showMask: # mask is currently hidden
                 rot = np.rot90(self.volArray)
                 flip = np.flipud(rot)
                 self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
-            else:
-                im = Image.fromarray(self.volArray)
-                overlay = Image.blend(im, self.mask, 0.3)
-                #overlay.show()
-
-                draw = ImageDraw.Draw(overlay)
-
-                for label in self.labels_pos:
-                    positions = self.labels_pos[label]
-                    centroid = np.array(positions).mean(axis=0)
-                    draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
-
-                self.blended = np.array(overlay)
-                rot = np.rot90(self.blended)
-                flip = np.flipud(rot)
-                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            else: # bring back mask on to volume slice image
+                self.showMaskHelper()
         else:
             self.volArray[:, :, 1] = self.greenOld.copy()
             self.isGreenChecked = False
@@ -665,21 +654,7 @@ class VolumeAlignment(QWidget):
                 flip = np.flipud(rot)
                 self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
             else:
-                im = Image.fromarray(self.volArray)
-                overlay = Image.blend(im, self.mask, 0.3)
-                #overlay.show()
-
-                draw = ImageDraw.Draw(overlay)
-
-                for label in self.labels_pos:
-                    positions = self.labels_pos[label]
-                    centroid = np.array(positions).mean(axis=0)
-                    draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
-
-                self.blended = np.array(overlay)
-                rot = np.rot90(self.blended)
-                flip = np.flipud(rot)
-                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+                self.showMaskHelper()
 
     # hides/shows the probe trajectory
     def toggleProbe(self):
@@ -746,23 +721,25 @@ class VolumeAlignment(QWidget):
         #self.coords = self.unitPlot.coords
 
         channel_dict = {'AP': [], 'DV': [], 'ML': [], 'probe_name': []}
-        channels = [p[1] for p in self.channelsOriginal]
+        #channels = [p[1] for p in self.channelsOriginal]
+        num_channels = 0
 
         for i in range(len(self.channels)):
             channel = self.channels[i]
             y_coord = int(np.round(channel[1]))
 
-            if y_coord not in self.coords:
-                coord = (0, 0, 0)
-            else:
+            if y_coord in self.coords:
                 coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
 
-            #print(coord)
-            channel_dict['AP'].append(coord[0])
-            channel_dict['DV'].append(coord[1] * (1 / 0.94))
-            channel_dict['ML'].append(coord[2])
+                #print(coord)
+                channel_dict['AP'].append(coord[0])
+                channel_dict['DV'].append(coord[1] * (1 / 0.94))
+                channel_dict['ML'].append(coord[2])
+                
+                num_channels += 1
 
         probe_name = self.probeDropDown.currentText()
+        channels = list(range(num_channels, -1, -1))
         probe = [probe_name for i in range(len(channel_dict['AP']))]
         channel_dict['probe_name'] = probe
         df_channel = pd.DataFrame(channel_dict)
@@ -776,8 +753,19 @@ class VolumeAlignment(QWidget):
         probe = self.probeDropDown.currentText()
         metric = self.metrics.currentText().lower()
         view = self.image.getView()
-        
-        self.plots[metric].generateMetrics(metric.lower())
+
+        probe_let_num = probe[probe.index(' ')+1:]
+
+        key = self.days[int(probe_let_num[1]) - 1]
+        paths = self.waveMetricsPath[key]
+
+        for p in paths:
+            if 'probe' + probe_let_num[0] in p:
+                self.path = p
+                break
+
+        self.plots[metric].updateMetrics(self.path)
+        #self.plots[metric].generateMetrics(metric.lower())
 
         if hasattr(self, 'linepts'):
             self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues, keep_y=True, old_y=self.plots[self.oldMetric].channels, points_added=self.pointsAdded)
@@ -821,11 +809,14 @@ class VolumeAlignment(QWidget):
     def displayRegion(self):
         probe = self.probeDropDown.currentText()
         metric = self.metrics.currentText().lower()
+        
+        if probe in self.alignments: # already existing alignment has been done, so use that to update display
+            self.alignments[self.prevProbe] = [self.metric, self.plots['unit_density'].channels, self.plots[metric].channels, self.lineItems.copy(), 
+                                              self.pointsAdded.copy()] 
+            self.resetPlot()
+            self.updateDisplay(probe, restore=True)
 
-        if self.prevProbe == '' or self.prevProbe != probe:
-            if self.prevProbe != '' and self.prevProbe != probe:
-                self.resetPlot()
-            self.updateDisplay(probe)
+            # get metrics path for this probe and day
             probe_let_num = probe[probe.index(' ')+1:]
 
             key = self.days[int(probe_let_num[1]) - 1]
@@ -836,20 +827,45 @@ class VolumeAlignment(QWidget):
                     self.path = p
                     break
 
-
-            #for plot in self.plots:
             self.plots['unit_density'].updateMetrics(self.path)
-            #self.plots['unit_density'].resetPlot(remove_probe=True)
-            self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues)
-
-            #for plot in self.plots:
+            #self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues) # update display since no existing alignment has been done so far
             self.plots[metric].updateMetrics(self.path)
-            #self.plots[metric].resetPlot(remove_probe=True)
-            self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues)
+            self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues, keep_y=True, old_y=self.alignments[probe][1], points_added=self.alignments[probe][-1])
 
             self.prevProbe = probe
             self.oldMetric = metric.lower()
+        else:
+            if self.prevProbe == '' or self.prevProbe != probe: # new alignment
+                if self.prevProbe != '' and self.prevProbe != probe:
+                    # add old alignment to dictionary
+                    self.alignments[self.prevProbe] = [metric, self.plots['unit_density'].channels, self.plots[metric].channels, self.lineItems.copy(), 
+                                                       self.pointsAdded.copy()] 
+                    self.resetPlot()
+                    self.updateDisplay(probe)
+                else: # initial display when nothing has been done
+                    self.updateDisplay(probe)
 
+                # get metrics path for this probe and day
+                probe_let_num = probe[probe.index(' ')+1:]
+
+                key = self.days[int(probe_let_num[1]) - 1]
+                paths = self.waveMetricsPath[key]
+
+                for p in paths:
+                    if 'probe' + probe_let_num[0] in p:
+                        self.path = p
+                        break
+
+                self.plots['unit_density'].updateMetrics(self.path)
+                self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues) # update display since no existing alignment has been done so far
+
+                self.plots[metric].updateMetrics(self.path)
+                self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues)
+
+                self.prevProbe = probe
+                self.oldMetric = metric.lower()
+
+    # helper function to remove the alignment line
     def removeLineHelper(self, y_coord, ind):
         view = self.image.getView()
         item = self.lineItems[ind]
@@ -1060,6 +1076,9 @@ class VolumeAlignment(QWidget):
             popped = self.lineItems.pop(-1)
             view = self.image.getView()
             view.removeItem(popped)
+            self.pointsAdded.pop(-1)
+            self.plots['unit_density'].linearSpacePoints(self.pointsAdded)
+            self.plots[self.metrics.currentText().lower()].linearSpacePoints(self.pointsAdded)
 
     # toggles the mask 
     def toggleCCFRegions(self):
@@ -1085,7 +1104,7 @@ class VolumeAlignment(QWidget):
             flip = np.flipud(rot)
             self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
             self.showMask = True
-
+    """
     # displays the region along the probe track
     # probe: string, the probe to be displayed from the drop down
     def updateDisplay(self, probe):
@@ -1112,93 +1131,148 @@ class VolumeAlignment(QWidget):
             
             if linepts[-1,1] - linepts[0,1] < 0:
                 linepts = np.flipud(linepts)
-            
+
+        self.coords = {}
+        self.linepts = linepts
+        coords_int = {}
+
         print(linepts.shape[0])
         # extract region of image, build row cells containing image
         intensity_values_red = np.zeros((linepts.shape[0],160))
         intensity_values_green = np.zeros((linepts.shape[0],160))
         intensity_values_blue = np.zeros((linepts.shape[0],160))
+        self.intensityValues = intensity_values_red
 
-        # for mask displayign regions
+        # for mask displaying regions
         intensity_ccf_red = np.zeros((linepts.shape[0],160))
         intensity_ccf_green = np.zeros((linepts.shape[0],160))
         intensity_ccf_blue = np.zeros((linepts.shape[0],160))
-        #volume_warp = np.zeros((528, 320, 456))
-
-        self.coords = {}
-        self.linepts = linepts
-        self.intensityValues = intensity_values_red
-        coords_int = {}
-        self.labels_pos = {}
-        keys = list(self.acrnm_map.keys())
-        values = list(self.acrnm_map.values())
+        volume_warp = np.zeros((528, 320, 456))
 
         for j in range(linepts.shape[0]):
             self.coords[j] = (linepts[j, 0], linepts[j, 1], linepts[j, 2])
 
             for k in range(-80,80): # build slice that probe cuts through
                 try:
-                    #point = [[int(np.round(linepts[j, 0] / 2.5)), int(np.round(linepts[j, 1] / 2.5)), int(np.round((linepts[j, 2]+k) / 2.5))]]
-                    #warp_point = np.array(list(map(self.dfmfld_transform.TransformPoint,point)))
-
-                    ccf_point = [int(np.round(linepts[j, 0] / 2.5)), int(np.round(linepts[j, 1] / 2.5)), int(np.round((linepts[j, 2]+k) / 2.5))]
+                    ccf_point = [int(np.round(linepts[j, 0] / 2.5)), int(np.round(linepts[j, 1] / 2.5)), int(np.round((linepts[j, 2] + k) / 2.5))]
                     intensity_values_red[j,k+80] = (self.volumeRed[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
                     intensity_values_green[j,k+80] = (self.volumeGreen[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
                     intensity_values_blue[j,k+80] = (self.volumeBlue[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
-                    coords_int[(j, k+80)] = ccf_point
 
-                    struct = self.anno[ccf_point[0], ccf_point[1], ccf_point[2]]
+                    coords_int[(j, k+80)] = ccf_point
+                except IndexError:
+                    pass
+
+        reference_dict = {'AP': [], 'DV': [], 'ML': []}
+        mask_points = {}
+        # warp 3d point at each pixel to ccf using deformation field
+        try:
+            for row in range(linepts.shape[0]):
+                for col in range(intensity_values_red.shape[1]):
+                    point = coords_int[row, col]
+                    volume_warp[point[0], point[1], point[2]] = 1
+
+                    vol_im = sitk.GetImageFromArray(volume_warp.T)
+                    vol_im.SetSpacing((25, 25, 25))
+
+                    warped_im = warp_execute(vol_im, self.reference, self.field, sitk.sitkLinear)
+                    warped_arr = sitk.GetArrayFromImage(warped_im)
+                    nonzero_points = np.argwhere(warped_arr > 0)
+                    cluster_annotations(1, nonzero_points, reference_dict, None)
+                    mask_points[(row, col)] = [reference_dict['AP'][-1], reference_dict['DV'][-1], reference_dict['ML'][-1]]
+                    volume_warp[volume_warp > 0] = 0 # reset array
+        except IndexError:
+            pass
+
+        print(reference_dict)
+
+    """
+    # displays the region along the probe track
+    # probe: string, the probe to be displayed from the drop down
+    def updateDisplay(self, probe, restore=False):
+        self.showMask = True
+        self.showProbe = True
+        #print('Probe', probe)
+        x = self.probeAnnotations[self.probeAnnotations.probe_name == probe].ML 
+        y = self.probeAnnotations[self.probeAnnotations.probe_name == probe].DV 
+        
+        z = self.probeAnnotations[self.probeAnnotations.probe_name == probe].AP
+
+        # get trajectory
+        if len(z) > 0: # 
+            data = np.vstack((z,y,x)).T
+            datamean = data.mean(axis=0)
+
+            D = data - datamean
+            m1 = np.min(D[:,1]) * 2
+            m2 = np.max(D[:,1]) * 2
+            uu,dd,vv = np.linalg.svd(D)
+
+            linepts = vv[0] * np.mgrid[-530:600:1][:,np.newaxis]
+            linepts += datamean
+            
+            if linepts[-1,1] - linepts[0,1] < 0:
+                linepts = np.flipud(linepts)
+            
+        print(linepts.shape[0])
+        intensity_values_red = np.zeros((linepts.shape[0],160))
+        """
+        # extract region of image, build row cells containing image
+        intensity_values_red = np.zeros((linepts.shape[0],160))
+        intensity_values_green = np.zeros((linepts.shape[0],160))
+        intensity_values_blue = np.zeros((linepts.shape[0],160))
+
+        # for mask displaying regions
+        intensity_ccf_red = np.zeros((linepts.shape[0],160))
+        intensity_ccf_green = np.zeros((linepts.shape[0],160))
+        intensity_ccf_blue = np.zeros((linepts.shape[0],160))
+        #volume_warp = np.zeros((528, 320, 456))
+        """
+        self.coords = {}
+        self.linepts = linepts
+        self.intensityValues = intensity_values_red
+
+        for j in range(linepts.shape[0]):
+            self.coords[j] = (linepts[j, 0], linepts[j, 1], linepts[j, 2])
+
+        """
+        for j in range(linepts.shape[0]):
+            self.coords[j] = (linepts[j, 0], linepts[j, 1], linepts[j, 2])
+
+            for k in range(-80,80): # build slice that probe cuts through
+                try:
+                    point = [int(np.round(linepts[j, 0] / 2.5)), int(np.round(linepts[j, 1] / 2.5)), int(np.round((linepts[j, 2] + k) / 2.5))]
+                    
+                    intensity_values_red[j,k+80] = (self.volumeRed[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
+                    intensity_values_green[j,k+80] = (self.volumeGreen[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
+                    intensity_values_blue[j,k+80] = (self.volumeBlue[int(linepts[j,0]),int(linepts[j,1]),int(linepts[j,2]+k)])
+
+                    coords_int[(j, k+80)] = point
+                    struct = self.anno[point[0], point[1], point[2]]
 
                     if struct in values:
                         ind = values.index(struct)
                         key = keys[ind]
 
                         if not key[0].islower():
-                            """
-                            parent_struct = self.tree.parents([struct])
-                            closest_parent = parent_struct[0]['structure_id_path'][-1]
-                            parent_ind = values.index(closest_parent)
-                            parent_key = keys[parent_ind]
-                            """
-                            if key in self.labels_pos:
-                                self.labels_pos[key].append((j, k+80))
+                            if key in labels_pos:
+                                labels_pos[key].append((j, k+80))
                             else:
-                                self.labels_pos[key] = [(j, k+80)]
-                    
-                    #struct = self.anno[int(np.round(warp_point[0][2] * 1.25)), int(np.round(warp_point[0][1] * 1.25)), int(np.round(warp_point[0][0] * 1.25))]
-                    #struct = self.anno[int(np.round(linepts[j, 0] / 2.5)), int(np.round(linepts[j, 1]) / 2.5), int(np.round(linepts[j, 2]+k / 2.5))]
-                    
-                    """
-                    #print(warp_point)
-                    if struct in self.colormap:
-                        intensity_ccf_red[j,k+80] = self.colormap[struct][0]
-                        intensity_ccf_green[j,k+80] = self.colormap[struct][1]
-                        intensity_ccf_blue[j,k+80] = self.colormap[struct][2]
-                    """
+                                labels_pos[key] = [(j, k+80)]
                 except IndexError:
                     pass
-
-        self.s.clear()
-        self.pos.clear()
-
+        
         for row in range(linepts.shape[0]):
             for col in range(160):
-                point = coords_int[(row, col)]
-                struct = self.anno[point[0], point[1], point[2]]
+                if(row, col) in coords_int:
+                    point = coords_int[(row, col)]
+                    struct = self.anno[point[0], point[1], point[2]]
 
-                if struct in self.colormap:
-                    intensity_ccf_red[row,col] = self.colormap[struct][0]
-                    intensity_ccf_green[row,col] = self.colormap[struct][1]
-                    intensity_ccf_blue[row,col] = self.colormap[struct][2]
-                    """
-                    ind = values.index(struct)
-                    key = keys[ind]
+                    if struct in self.colormap:
+                        intensity_ccf_red[row,col] = self.colormap[struct][0]
+                        intensity_ccf_green[row,col] = self.colormap[struct][1]
+                        intensity_ccf_blue[row,col] = self.colormap[struct][2]
 
-                    if key not in self.s:
-                        self.s.append(key)
-                        self.pos.append([row, col])
-                    """            
-                    
         # volume that probe cuts through
         self.int_arrays = {}
         self.int_arrays['red'] = intensity_values_red
@@ -1216,30 +1290,33 @@ class VolumeAlignment(QWidget):
         mask = np.stack(level_arrays, axis=-1)
         print(mask.shape)
 
-        self.mask = Image.fromarray(mask.astype(np.uint8))
-        im = Image.fromarray(self.volArray)
-        # Custom font style and font size
+        self.mask = Image.fromarray(mask.astype(np.uint8)).copy()
+        im = Image.fromarray(self.volArray).copy()
 
-        overlay = Image.blend(im, self.mask, 0.3)
+        overlay = Image.blend(im, self.mask, 0.5).copy()
         draw = ImageDraw.Draw(overlay)
         draw_mask = ImageDraw.Draw(self.mask)
 
-        """
-        for i in range(len(self.pos)):
-            draw.text((self.pos[i][1], self.pos[i][0]), self.s[i], font=self.myFont, fill=(255, 255, 255))
-        """
-        for label in self.labels_pos:
-            positions = self.labels_pos[label]
-            centroid = np.array(positions).mean(axis=0)
-            draw.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
-            draw_mask.text((int(np.round(centroid[1])), int(np.round(centroid[0]))), label, font=self.myFont, fill=(255, 255, 255))
+        for key in labels_pos:
+            if key == 'LGv':
+                print(labels_pos[key])
+            pos = np.array(labels_pos[key])
+            center = pos.mean(axis=0)
 
+            draw_mask.text((center[1], center[0]), key, fill=(255, 255, 255), font=self.myFont)
+            draw.text((center[1], center[0]), key, fill=(255, 255, 255), font=self.myFont)
         #overlay.show()
         
         self.blended = np.array(overlay)
-
-        
+        self.labels_pos = labels_pos
         #print(self.volArray.shape)
+        """
+        p = probe.replace(' ', '_')
+        self.volArray = np.array(Image.open(os.path.join(self.workingDirectory, self.mouseID, 'images', '{}_slice.png'.format(p)))) # read slice 
+        self.mask = Image.open(os.path.join(self.workingDirectory, self.mouseID, 'images', '{}_mask.png'.format(p))) # read mask
+        self.blended = np.array(Image.open(os.path.join(self.workingDirectory, self.mouseID, 'images', '{}_overlay.png'.format(p)))) # read overlay
+        with open(os.path.join(self.workingDirectory, self.mouseID, 'images', '{}_labels.pickle'.format(p)), 'rb') as handle:
+            self.labels_pos = pickle.load(handle)
 
         # modify based on if red and green channel toggle have been checked or not
         if self.isRedChecked:
@@ -1262,17 +1339,36 @@ class VolumeAlignment(QWidget):
         self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
         view = self.image.getView()
 
-        self.points = [[81, t] for t in range(j)]
+        self.points = [[80, t] for t in range(j)]
         self.plItem = pg.ScatterPlotItem(pos=self.points, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')))
         #self.plItem.setClickable(True)
         self.plItem.sigClicked.connect(self.onclickProbe)
 
-        view.addItem(self.plots['unit_density'].channelsPlot)
-        view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot)
+        if not restore:
+            view.addItem(self.plots['unit_density'].channelsPlot)
+            view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot)
 
-        view.addItem(self.plItem)
+            view.addItem(self.plItem)
+        else:
+            view.addItem(self.plItem)
+            plot_items = self.alignments[probe]
+
+            self.plots['unit_density'].channelsPlot.setData(pos=np.array(plot_items[1], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
+            self.plots['unit_density'].channels = plot_items[1].copy()
+            self.plots[self.metrics.currentText().lower()].channelsPlot.setData(pos=np.array(plot_items[2], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
+            self.plots[self.metrics.currentText().lower()].channels = plot_items[2].copy()
+            view.addItem(self.plots['unit_density'].channelsPlot) # add unit plot
+            view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot) # add metric plot
+
+            self.lineItems = plot_items[3].copy() # add line items
+            for item in self.lineItems:
+                view.addItem(item)
+
+            self.pointsAdded = plot_items[4].copy() # restore alignment
+
+
         #view.addItem(self.textItem)
-
+        
 if __name__ == '__main__':
     # command line inputs - mouse id
     args = parser.parse_args()
