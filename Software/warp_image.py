@@ -80,14 +80,15 @@ def warp_channels(output_dir, annotations, field, reference, probe, mouse_id, ch
     
     min_ind = int(np.round(annotations['AP'].min() / 2.5))
     max_ind = int(np.round(annotations['AP'].max() / 2.5))
-
+    """
     if min_ind == max_ind: # probes on same slice
         im = sitk.GetImageFromArray(arr[min_ind:min_ind+1, :, :].T)
     else: # probes across multiple slices
         im = sitk.GetImageFromArray(arr[min_ind:max_ind+1, :, :].T)
-
+    """
+    im = sitk.GetImageFromArray(arr.T)
     im.SetSpacing((25, 25, 25))
-    im.SetOrigin((min_ind * 25, 0, 0))    
+    #im.SetOrigin((min_ind * 25, 0, 0))    
 
     result = warp_execute(im, reference, field, sitk.sitkLinear)
     result_arr = sitk.GetArrayFromImage(result)
@@ -102,7 +103,8 @@ def warp_channels(output_dir, annotations, field, reference, probe, mouse_id, ch
     df_final.sort_values(['DV', 'ML'], inplace=True)
     df_final.reset_index()
     df_final['channel'] = channels
-    df_final.to_csv(os.path.join(output_dir, '{}_channels_{}_warped.csv'.format(probe.replace(' ', '_'), mouse_id)), index=False)
+    #df_final.to_csv(os.path.join(output_dir, '{}_channels_{}_warped.csv'.format(probe.replace(' ', '_'), mouse_id)), index=False)
+    return df_final
 
 # warps the points annotated based on the probe
 def warp_points(output_dir, mouse_id, annotations, field, reference, progress):

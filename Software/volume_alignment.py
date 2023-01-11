@@ -170,41 +170,41 @@ class PlotDisplayItem():
                 else:
                     self.channelsOriginal.append([i, 0])
            
-            self.channelsOriginal = [[self.channelsOriginal[i][1] - 10, 384 - i - 1 + 256] for i in range(len(self.channelsOriginal))]
+            self.channelsOriginal = [[self.channelsOriginal[i][1], 384 - i - 1 + 256] for i in range(len(self.channelsOriginal))]
             
-            x_val = [p[0] * 5 for p in self.channelsOriginal]
+            x_val = [p[0] * 10 for p in self.channelsOriginal]
             conv = np.ones(10)
 
             smoothed = np.convolve(x_val, conv, mode='same')
             smoothed = smoothed / np.sum(conv)
-            self.channelsOriginal = [[smoothed[i], self.channelsOriginal[i][1]] for i in range(384)]
+            self.channelsOriginal = [[smoothed[i] - 100, self.channelsOriginal[i][1]] for i in range(384)]
         elif self.measurement == 'spread':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=0, shift_value=200)
+            self.generateMetricChannels(measurement, scale_value=0, shift_value=300)
         elif self.measurement == 'firing_rate':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/2, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=1/2, shift_value=250)
         elif self.measurement == 'd_prime':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=0, shift_value=250)
         elif self.measurement == 'cumulative_drift':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=0, shift_value=250)
         elif self.measurement == 'velocity_above':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=250)
         elif self.measurement == 'velocity_below':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=250)
         elif self.measurement == 'amplitude':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=5, shift_value=200)
+            self.generateMetricChannels(measurement, scale_value=5, shift_value=300)
         elif self.measurement == 'isi_viol':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=0, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=0, shift_value=250)
         elif self.measurement == 'nn_hit_rate':
             self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/5, shift_value=150)
+            self.generateMetricChannels(measurement, scale_value=1/5, shift_value=250)
 
     # helper function to generate the metric channels
     # metric: string
@@ -472,7 +472,7 @@ class VolumeAlignment(QWidget):
         print(self.field_file)
         self.reference_file = os.path.join( self.modelDirectory, 'average_template_25.nrrd')
         
-        """
+        
         with open(os.path.join(self.workingDirectory, 'field_reference', 'name_map.pkl'), 'rb') as f:
             self.name_map = pickle.load(f)
         with open(os.path.join(self.workingDirectory, 'field_reference', 'acrnm_map.pkl'), 'rb') as f:
@@ -480,7 +480,7 @@ class VolumeAlignment(QWidget):
         with open(os.path.join(self.workingDirectory, 'field_reference', 'color_map.pkl'), 'rb') as f:
             self.colormap = pickle.load(f)
         self.anno = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.workingDirectory, 'field_reference', 'ccf_ano.mhd')))
-        """
+        
         self.reference = sitk.ReadImage( self.reference_file )
         self.field = sitk.ReadImage( self.field_file)
         self.probeAnnotations = pd.read_csv(os.path.join(self.storageDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
@@ -718,6 +718,8 @@ class VolumeAlignment(QWidget):
     def warpChannels(self):
         self.channelsOriginal = self.unitPlot.channelsOriginal
         self.channels = self.unitPlot.channels
+        values = list(self.acrnm_map.values())
+        keys = list(self.acrnm_map.keys())
         #self.coords = self.unitPlot.coords
 
         channel_dict = {'AP': [], 'DV': [], 'ML': [], 'probe_name': []}
@@ -736,15 +738,39 @@ class VolumeAlignment(QWidget):
                 channel_dict['DV'].append(coord[1] * (1 / 0.94))
                 channel_dict['ML'].append(coord[2])
                 
-                num_channels += 1
+                #num_channels += 1
 
         probe_name = self.probeDropDown.currentText()
-        channels = list(range(num_channels, -1, -1))
+        channels = list(range(383, -1, -1))
         probe = [probe_name for i in range(len(channel_dict['AP']))]
         channel_dict['probe_name'] = probe
         df_channel = pd.DataFrame(channel_dict)
         
-        warp_channels(self.storageDirectory, df_channel, self.field, self.reference, self.probeDropDown.currentText(), self.mouseID, channels)
+        df_final = warp_channels(self.storageDirectory, df_channel, self.field, self.reference, self.probeDropDown.currentText(), self.mouseID, channels)
+        channel_areas = []
+        vol = np.zeros((528, 320, 456))
+
+        for index, row in df_final.iterrows():
+            struct = self.anno[row.AP, row.DV, row.ML]
+            if struct in values:
+                ind = values.index(struct)
+                key = keys[ind]
+
+                if not key[0].islower():
+                    channel_areas.append(key)
+                    vol[row.AP, row.DV, row.ML] = self.colormap[struct][0]
+                else:
+                    channel_areas.append('N/A')
+            else:
+                channel_areas.append('N/A')
+
+        df_final['channel_areas'] = channel_areas
+        df_final.to_csv(os.path.join(self.storageDirectory, '{}_channels_{}_warped.csv'.format(probe_name.replace(' ', '_'), mouse_id)), index=False)
+        """
+        plt.imshow(sitk.GetArrayFromImage(self.reference).T.sum(axis=0), cmap='gray')
+        plt.imshow(vol.sum(axis=0), alpha=0.5)
+        plt.show()
+        """
 
     # function called when the drop down for the metric changes
     # updates the plots to get the metrics file for the corresponding probe and day
