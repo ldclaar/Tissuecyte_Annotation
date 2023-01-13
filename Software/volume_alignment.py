@@ -172,7 +172,7 @@ class PlotDisplayItem():
            
             self.channelsOriginal = [[self.channelsOriginal[i][1], 384 - i - 1 + 256] for i in range(len(self.channelsOriginal))]
             
-            x_val = [p[0] * 10 for p in self.channelsOriginal]
+            x_val = [p[0] * 5 for p in self.channelsOriginal]
             conv = np.ones(10)
 
             smoothed = np.convolve(x_val, conv, mode='same')
@@ -730,15 +730,14 @@ class VolumeAlignment(QWidget):
             channel = self.channels[i]
             y_coord = int(np.round(channel[1]))
 
-            if y_coord in self.coords:
-                coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
-
-                #print(coord)
-                channel_dict['AP'].append(coord[0])
-                channel_dict['DV'].append(coord[1] * (1 / 0.94))
-                channel_dict['ML'].append(coord[2])
+            #if y_coord in self.coords:
+            coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
+            #print(coord)
+            channel_dict['AP'].append(coord[0])
+            channel_dict['DV'].append(coord[1])
+            channel_dict['ML'].append(coord[2])
                 
-                #num_channels += 1
+            #num_channels += 1
 
         probe_name = self.probeDropDown.currentText()
         channels = list(range(383, -1, -1))
@@ -747,18 +746,17 @@ class VolumeAlignment(QWidget):
         df_channel = pd.DataFrame(channel_dict)
         
         df_final = warp_channels(self.storageDirectory, df_channel, self.field, self.reference, self.probeDropDown.currentText(), self.mouseID, channels)
+        
         channel_areas = []
-        vol = np.zeros((528, 320, 456))
 
         for index, row in df_final.iterrows():
-            struct = self.anno[row.AP, row.DV, row.ML]
+            struct = self.anno[row.AP, int(np.round(row.DV / 0.875)), row.ML]
             if struct in values:
                 ind = values.index(struct)
                 key = keys[ind]
 
                 if not key[0].islower():
                     channel_areas.append(key)
-                    vol[row.AP, row.DV, row.ML] = self.colormap[struct][0]
                 else:
                     channel_areas.append('N/A')
             else:
@@ -766,11 +764,16 @@ class VolumeAlignment(QWidget):
 
         df_final['channel_areas'] = channel_areas
         df_final.to_csv(os.path.join(self.storageDirectory, '{}_channels_{}_warped.csv'.format(probe_name.replace(' ', '_'), mouse_id)), index=False)
-        """
-        plt.imshow(sitk.GetArrayFromImage(self.reference).T.sum(axis=0), cmap='gray')
-        plt.imshow(vol.sum(axis=0), alpha=0.5)
+
+        grouped = df_final.groupby('channel_areas').mean()
+        
+        for index, row in grouped.iterrows():
+            if index != 'N/A':
+                plt.text(row.ML, row.DV, index, color='white')
+        
+        plt.imshow(sitk.GetArrayFromImage(self.reference).T[int(grouped.AP.mean()),0 :, :])
         plt.show()
-        """
+        
 
     # function called when the drop down for the metric changes
     # updates the plots to get the metrics file for the corresponding probe and day
