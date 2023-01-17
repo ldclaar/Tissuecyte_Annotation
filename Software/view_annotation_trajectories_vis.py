@@ -48,7 +48,7 @@ class AnnotationProbesViewer(QWidget):
         #self.field_file = os.path.join( self.storage_directory, 'dfmfld.mhd')
         self.reference_file = os.path.join( self.model_directory, 'average_template_25.nrrd')
 
-        self.volume = sitk.GetArrayFromImage(sitk.ReadImage(self.reference_file)).T
+        self.volume = sitk.GetArrayFromImage(sitk.ReadImage(self.reference_file)
         self.reference = sitk.ReadImage( self.reference_file )
         #self.field = sitk.ReadImage( self.field_file )
 

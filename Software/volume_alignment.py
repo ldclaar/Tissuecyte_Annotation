@@ -172,7 +172,7 @@ class PlotDisplayItem():
            
             self.channelsOriginal = [[self.channelsOriginal[i][1], 384 - i - 1 + 256] for i in range(len(self.channelsOriginal))]
             
-            x_val = [p[0] * 5 for p in self.channelsOriginal]
+            x_val = [p[0] * 10 for p in self.channelsOriginal]
             conv = np.ones(10)
 
             smoothed = np.convolve(x_val, conv, mode='same')
@@ -205,6 +205,9 @@ class PlotDisplayItem():
         elif self.measurement == 'nn_hit_rate':
             self.processMetrics()
             self.generateMetricChannels(measurement, scale_value=1/5, shift_value=250)
+        elif self.measurement == 'presence_ratio':
+            self.processMetrics()
+            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=250)
 
     # helper function to generate the metric channels
     # metric: string
@@ -495,7 +498,7 @@ class VolumeAlignment(QWidget):
         self.volCCFGreen = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, '25_micron', 'resampled_green.mhd'))).T
         self.volCCFBlue = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.storageDirectory, '25_micron', 'resampled_blue.mhd'))).T
         """
-        self.metricsList = ['Spread', 'Amplitude', 'Isi_Viol', 'NN_Hit_Rate', 'Firing_Rate', 'Velocity_Above', 'Velocity_Below']
+        self.metricsList = ['Spread', 'Amplitude', 'Isi_Viol', 'NN_Hit_Rate', 'Firing_Rate', 'Presence_Ratio', 'Velocity_Above', 'Velocity_Below']
 
         self.unitPlot = PlotDisplayItem('unit_density', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.spreadPlot = PlotDisplayItem('spread', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
@@ -505,11 +508,13 @@ class VolumeAlignment(QWidget):
         self.velocityBelowPlot = PlotDisplayItem('velocity_below', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.ampPlot = PlotDisplayItem('amplitude', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.hitRatePlot = PlotDisplayItem('nn_hit_rate', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
+        self.presPlot = PlotDisplayItem('presence_ratio', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         #self.repolarPlot = PlotDisplayItem('repolarization_slope', self.waveform, self.metrics, self.volumeImage, self.probeAnnotations, self.mouseID)
         #self.dPrimePlot = PlotDisplayItem('d_prime', self.waveform, self.metrics, self.volumeImage, self.probeAnnotations, self.mouseID)
         #self.cumDriftPlot = PlotDisplayItem('cumulative_drift', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.plots = {'unit_density': self.unitPlot, 'spread': self.spreadPlot, 'velocity_above': self.velocityAbovePlot, 'firing_rate': self.firePlot,
-                      'velocity_below': self.velocityBelowPlot, 'amplitude': self.ampPlot, 'isi_viol': self.isiPlot, 'nn_hit_rate': self.hitRatePlot}
+                      'velocity_below': self.velocityBelowPlot, 'amplitude': self.ampPlot, 'isi_viol': self.isiPlot, 'nn_hit_rate': self.hitRatePlot,
+                      'presence_ratio': self.presPlot}
         
         for plot in self.plots:
             others = [k for k in self.plots if k != plot]
@@ -578,7 +583,7 @@ class VolumeAlignment(QWidget):
         self.probeViewLayout.addWidget(self.viewButton)
         self.probeViewLayout.addWidget(self.resetPlotButton)
         self.probeViewLayout.addWidget(self.toggleProbeButton)
-        self.probeViewLayout.addWidget(self.calcDistanceButton)
+        #self.probeViewLayout.addWidget(self.calcDistanceButton)
         self.probeViewLayout.addWidget(self.viewCCFButton)
         self.probeViewLayout.addWidget(self.redCheck)
         self.probeViewLayout.addWidget(self.greenCheck)
@@ -728,14 +733,15 @@ class VolumeAlignment(QWidget):
 
         for i in range(len(self.channels)):
             channel = self.channels[i]
-            y_coord = int(np.round(channel[1]))
+            y_coord = int(np.round(channel[1] + 80))
 
-            #if y_coord in self.coords:
-            coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
+            if y_coord in self.coords:
+                coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
+
             #print(coord)
-            channel_dict['AP'].append(coord[0])
-            channel_dict['DV'].append(coord[1])
-            channel_dict['ML'].append(coord[2])
+                channel_dict['AP'].append(coord[0])
+                channel_dict['DV'].append(coord[1])
+                channel_dict['ML'].append(coord[2])
                 
             #num_channels += 1
 
@@ -750,7 +756,7 @@ class VolumeAlignment(QWidget):
         channel_areas = []
 
         for index, row in df_final.iterrows():
-            struct = self.anno[row.AP, int(np.round(row.DV / 0.875)), row.ML]
+            struct = self.anno[row.AP, row.DV, row.ML]
             if struct in values:
                 ind = values.index(struct)
                 key = keys[ind]
@@ -1081,6 +1087,7 @@ class VolumeAlignment(QWidget):
         h_line.sigClicked.connect(self.removeLine)
 
     def onclickProbe(self, plot, points):
+        """
         if not self.plots['unit_density'].channelsPlot.clicked and not self.plots[self.metrics.currentText().lower()].channelsPlot.clicked: # for distance calculation
             line_point = points[0].pos()
             pt = pg.ScatterPlotItem(pos=[[line_point[0], line_point[1]]], pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=5)
@@ -1089,17 +1096,18 @@ class VolumeAlignment(QWidget):
             view = self.image.getView()
             view.addItem(pt)
         else:
-            if self.plots['unit_density'].channelsPlot.clicked:
-                line_point = points[0].pos()
-                self.onClickProbeHelper(self.plots['unit_density'], line_point, is_unit=True)
-            else:
-                line_point = points[0].pos()
-                self.onClickProbeHelper(self.plots[self.metrics.currentText().lower()], line_point, is_unit=False)
+        """
+        if self.plots['unit_density'].channelsPlot.clicked:
+            line_point = points[0].pos()
+            self.onClickProbeHelper(self.plots['unit_density'], line_point, is_unit=True)
+        else:
+            line_point = points[0].pos()
+            self.onClickProbeHelper(self.plots[self.metrics.currentText().lower()], line_point, is_unit=False)
 
-            self.plots['unit_density'].channelsPlot.clicked = False
-            self.plots[self.metrics.currentText().lower()].channelsPlot.clicked = False
+        self.plots['unit_density'].channelsPlot.clicked = False
+        self.plots[self.metrics.currentText().lower()].channelsPlot.clicked = False
     
-    # backspace key
+    # left arrow key
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Left:
             popped = self.lineItems.pop(-1)
