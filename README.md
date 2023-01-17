@@ -91,8 +91,8 @@ The app has the following components:
   * Volume alignment: Zoom in and select a channel (point) on the unit density plot. Then click on a corresponding region on the probe and a yellow horizontal line should connect from the channel to that point on the probe. The plots will then shift/linearly space depending on the alignment made
   * Remove Alignment: Click on a yellow line to remove that alignment. Note this works best when zooming out
   * Reset Metric Plot will clear the alignments and reset both plots to the original positions
-  * To change a metric, choose from the drop down and then hit the `View Probe Region With Selected Metric` button
-  * To view a different probe, select from the probe drop down and then hit the same button as above
+  * To change a metric, choose from the drop down
+  * To view a different probe, select from the probe drop down
   * Tip: Start Alignment at the top of the plot and then work in a top-down manner
 
 
