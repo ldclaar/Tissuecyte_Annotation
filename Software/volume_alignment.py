@@ -539,7 +539,7 @@ class VolumeAlignment(QWidget):
         self.probeViewLayout.addWidget(self.probeDropDown)
         self.probeViewLayout.addWidget(self.metrics)
         #self.probeViewLayout.addWidget(self.toggleProbeButton)
-        self.probeViewLayout.addWidget(self.viewButton)
+        #self.probeViewLayout.addWidget(self.viewButton)
         self.probeViewLayout.addWidget(self.resetPlotButton)
         self.probeViewLayout.addWidget(self.toggleProbeButton)
         #self.probeViewLayout.addWidget(self.calcDistanceButton)
