@@ -96,6 +96,7 @@ The app has the following components:
   * Toggle Mask will show/hide the CCF mask
   * To change a metric, choose from the drop down
   * To view a different probe, select from the probe drop down
+  * Warp to CCF: Warps channels to CCF and displays regions. Output CSV is stored in the following location `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_channels_mouseID_warped.csv`
   * Tip: Start Alignment at the top of the plot and then work in a top-down manner
 
 
