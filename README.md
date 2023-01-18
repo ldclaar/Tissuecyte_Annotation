@@ -84,13 +84,16 @@ The app has the following main components
 ### Alignment App
 This app allows for the alginment of the 384 channels to the corresponding regions of interest. Run the command `python volume_alignment.app --mouseID <mouseID>
 
-Click on the probe and the desired metric that will be displayed along with the unit density. Then hit the `View Probe Region With Selected Metric` button. This will display the selected metric along with the unit density. The unit density will always be the plot closest to the red probe track.
+The probe and the desired metric that will be displayed along with the unit density are shown in the drop downs. The unit density will always be the plot closest to the red probe track.
 
 The app has the following components:
   * Zoom in/out - use the mouse wheel
   * Volume alignment: Zoom in and select a channel (point) on the unit density plot. Then click on a corresponding region on the probe and a yellow horizontal line should connect from the channel to that point on the probe. The plots will then shift/linearly space depending on the alignment made
   * Remove Alignment: Click on a yellow line to remove that alignment. Note this works best when zooming out
+  * Remove Last Alignment: Hit the left arrow key
   * Reset Metric Plot will clear the alignments and reset both plots to the original positions
+  * Toggle Probe will show/hide the red line
+  * Toggle Mask will show/hide the CCF mask
   * To change a metric, choose from the drop down
   * To view a different probe, select from the probe drop down
   * Tip: Start Alignment at the top of the plot and then work in a top-down manner
