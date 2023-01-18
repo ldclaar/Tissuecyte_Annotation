@@ -72,7 +72,7 @@ The app may take several mintues to load, and once it has loaded, the following 
     `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_annotations_mouseID_warped.csv`
 
 ### Reassignment App
-This app allows for probes to be reassigned to other probes along with deleting stray annotations. Run the command `python view_annotation_trajectories.py -- mouseID <mouseID>` and then wait for some time before seeing a similar display as below. The app shows the probe trajectories in both a 2D and 3D view
+This app allows for probes to be reassigned to other probes along with deleting stray annotations. Run the command `python view_annotation_trajectories_vis.py -- mouseID <mouseID>` and then wait for some time before seeing a similar display as below. The app shows the probe trajectories in both a 2D and 3D view
 
 ![image](https://github.com/arjunsridhar12345/Tissuecyte_Annotation/blob/main/images/reassignment_app_2.png)
 
