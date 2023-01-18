@@ -48,7 +48,7 @@ class AnnotationProbesViewer(QWidget):
         #self.field_file = os.path.join( self.storage_directory, 'dfmfld.mhd')
         self.reference_file = os.path.join( self.model_directory, 'average_template_25.nrrd')
 
-        self.volume = sitk.GetArrayFromImage(sitk.ReadImage(self.reference_file)
+        self.volume = sitk.GetArrayFromImage(sitk.ReadImage(self.reference_file))
         self.reference = sitk.ReadImage( self.reference_file )
         #self.field = sitk.ReadImage( self.field_file )
 
@@ -335,27 +335,42 @@ class AnnotationProbesViewer(QWidget):
     
     # removes point when point is clicked on
     def removePoint(self, event):
-        x_ml = event.xdata * 2.5 # x coordinate of click
-        print(x_ml)
-        y_dv = event.ydata * 2.5 # y coordinate of click
+        x_ml = int(np.round(event.xdata * 2.5)) # x coordinate of click
+        y_dv = int(np.round(event.ydata * 2.5)) # y coordinate of click
 
         ml_data = self.updatedAnnotations['ML']
         dv_data = self.updatedAnnotations['DV']
 
-        x_click_data = (ml_data - x_ml).abs().tolist()
-        min_x_index = np.argmin(x_click_data) # closest x index to click
-        y_click_data = (dv_data - y_dv).abs().tolist()
-        min_y_index = np.argmin(y_click_data) # closest y index to click
-        print(min_x_index, min_y_index)
-        print(x_click_data[min_x_index], y_click_data[min_y_index])
-        if min_x_index == min_y_index:
-              print(min_x_index, min_y_index)
-              self.updatedAnnotations.drop([min_y_index], inplace=True)
-              self.updatedAnnotations.reset_index(drop=True, inplace=True)
-              self.update_plot(self.updatedAnnotations) 
-              self.update_plot_2d(self.updatedAnnotations)
+        x_data = (np.abs(ml_data - x_ml))
+        y_data = (np.abs(dv_data - y_dv))
 
-    
+        min_x_index = -1
+
+        x_sorted = sorted(list(x_data.nsmallest(10).index))
+        y_sorted = sorted(list(y_data.nsmallest(10).index))
+
+        for ind in x_sorted:
+            if ind in y_sorted:
+                min_x_index = ind
+                break
+
+        self.updatedAnnotations.drop([min_x_index], inplace=True)
+        self.updatedAnnotations.reset_index(drop=True, inplace=True)
+        self.update_plot(self.updatedAnnotations) 
+        self.update_plot_2d(self.updatedAnnotations)
+        """
+        if x_data[min_x_index] < y_data[min_y_index]:
+            self.updatedAnnotations.drop([min_x_index], inplace=True)
+            self.updatedAnnotations.reset_index(drop=True, inplace=True)
+            self.update_plot(self.updatedAnnotations) 
+            self.update_plot_2d(self.updatedAnnotations)
+        else:
+            self.updatedAnnotations.drop([min_y_index], inplace=True)
+            self.updatedAnnotations.reset_index(drop=True, inplace=True)
+            self.update_plot(self.updatedAnnotations) 
+            self.update_plot_2d(self.updatedAnnotations)
+        """
+      
     def create_main_frame(self):
         self.main_frame = QWidget()
         
@@ -438,7 +453,7 @@ class AnnotationProbesViewer(QWidget):
         #self.axes.set_ylabel('DV')
         self.axes.set_title('2D View of Probe Annotations')
         #self.axes.set_zlabel('AP')
-        self.axes.imshow(self.volume[:, :, :].sum(axis=0), cmap='gray')
+        self.axes.imshow(self.volume[:, :, :].T.sum(axis=0), cmap='gray')
         #self.axes.plot_trisurf(self.volume[:319, 0], self.volume[:, 1], self.volume[:, 2])
         self.canvas.draw()
         plt.show()
