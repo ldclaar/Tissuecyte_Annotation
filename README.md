@@ -82,7 +82,7 @@ The app has the following main components
   * Reassign Probes: If a probe needs to be assigned to another one, but you are not sure if it needs to be switched, use this function. For example, if the current probe C1 needs to be reassigned to probe C3, and there is another probe that is C3, using this will change probe C1 to C3, and the original C3 will become the color light grey and have the label origProbe_C3. This allows for reassigning this probe later on, and it provides some history as to what the probe was orignally
   
 ### Alignment App
-This app allows for the alginment of the 384 channels to the corresponding regions of interest. Run the command `python volume_alignment.app --mouseID <mouseID>
+This app allows for the alginment of the 384 channels to the corresponding regions of interest. Run the command `python volume_alignment.py --mouseID <mouseID>`
 
 The probe and the desired metric that will be displayed along with the unit density are shown in the drop downs. The unit density will always be the plot closest to the red probe track.
 
