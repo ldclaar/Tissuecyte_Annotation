@@ -14,6 +14,7 @@ from PyQt5 import QtCore
 from pyqtgraph.Qt import QtGui
 from PyQt5.QtGui import QColor
 from PyQt5 import QtWidgets
+from qtrangeslider import QRangeSlider
 import sys
 from get_tissuecyte_info import get_tc_info
 from warp_image import warp_channels
@@ -26,12 +27,13 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 import pathlib
+import json
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
 
 SCALING_FACTOR = 1.5
-DEFAULT_COLOR_VALUES = [[0, 3000], [0, 3000], [0, 1000]]
+DEFAULT_COLOR_VALUES = [[0, 256], [0, 256], [0, 1000]]
 
 # graph represents a metric plot that can be clicked on
 # pyqtgraph documentation
@@ -256,6 +258,7 @@ class PlotDisplayItem():
     # when a new probe is displayed
     def resetPlot(self, remove_probe=False):
         self.channels = self.channelsOriginal
+        self.adj = [[i, i + 1] for i in range(len(self.channelsOriginal) - 1)]
         self.channelsPlot.setData(pos=np.array(self.channels, dtype=float), adj=np.array(self.adj, dtype=int))
 
     # helper function for shfiting points when new alignment is added
@@ -384,8 +387,8 @@ class PlotDisplayItem():
 class VolumeAlignment(QWidget):
     def __init__(self, mouse_id):
         super().__init__()
-        self.title = 'Volume Alignment'
         self.mouseID = mouse_id
+        self.title = 'Volume Alignment for Mouse {}'.format(self.mouseID)
         self.probe = 'ProbeA'
         self.waveform = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.{}-AP/waveform_metrics.csv'.format(self.probe)))
         self.metrics = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.{}-AP/metrics_test.csv'.format(self.probe)))
@@ -425,7 +428,7 @@ class VolumeAlignment(QWidget):
         self.lineItems = [] # pyqtgraph item for alignments
         self.oldChannels = [] # stack for undoing lines
         self.distPoints = []
-        self.distItems = []
+        self.anchorPts = []
         self.s = []
         self.pos = []
         self.myFont = ImageFont.load_default()
@@ -441,6 +444,8 @@ class VolumeAlignment(QWidget):
         print(self.field_file)
         self.reference_file = os.path.join( self.modelDirectory, 'average_template_25.nrrd')
         
+        if not os.path.exists(os.path.join(self.storageDirectory, 'anchors')):
+            os.mkdir(os.path.join(self.storageDirectory, 'anchors'))
         
         with open(os.path.join(self.workingDirectory, 'field_reference', 'name_map.pkl'), 'rb') as f:
             self.name_map = pickle.load(f)
@@ -485,11 +490,10 @@ class VolumeAlignment(QWidget):
         self.mainLayout = QVBoxLayout()
         self.imageLayout = QHBoxLayout()
 
-        
         self.imageLayout.addWidget(self.image)
         self.imageLayout.addWidget(self.imageMask)
 
-        # add ui features: probe/metric drop downs, red/green toggle, toggle probe, toggle mask, warp to ccf
+        # ui features: probe/metric drop downs, red/green toggle, toggle probe, toggle mask, warp to ccf
         self.probes = self.probeAnnotations['probe_name'].unique()
         self.probeLetters = [s[s.index(' ')+1:][0] for s in self.probes]
         self.probeLetters = sorted(list(set(self.probeLetters)))
@@ -511,6 +515,30 @@ class VolumeAlignment(QWidget):
         self.isGreenChecked = False
         self.greenCheck.clicked.connect(self.toggleGreen)
 
+        # rgb sliders to toggle value
+        self.redSlider = QRangeSlider(Qt.Horizontal)
+        self.redSlider.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.redSlider.setMinimum(DEFAULT_COLOR_VALUES[0][0])
+        self.redSlider.setMaximum(DEFAULT_COLOR_VALUES[0][1])
+        self.redSlider.setValue((DEFAULT_COLOR_VALUES[0][0], DEFAULT_COLOR_VALUES[0][1]))
+        self.redSlider.setTickPosition(QSlider.TicksBelow)
+        self.redSlider.setTickInterval(10)
+        self.redSlider.valueChanged.connect(self.redSliderMoved)
+
+        self.greenSlider = QRangeSlider(Qt.Horizontal)
+        self.greenSlider.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.greenSlider.setMinimum(DEFAULT_COLOR_VALUES[1][0])
+        self.greenSlider.setMaximum(DEFAULT_COLOR_VALUES[1][1])
+        self.greenSlider.setValue((DEFAULT_COLOR_VALUES[1][0], DEFAULT_COLOR_VALUES[1][1]))
+        self.greenSlider.setTickPosition(QSlider.TicksBelow)
+        self.greenSlider.setTickInterval(10)
+        self.greenSlider.valueChanged.connect(self.greenSliderMoved)
+
+        # layout for sliders
+        self.sliderLayout = QFormLayout()
+        self.sliderLayout.addRow('Red Slider', self.redSlider)
+        self.sliderLayout.addRow('Green Slider', self.greenSlider)
+
         self.metrics = QComboBox()
         self.metrics.currentTextChanged.connect(self.metricChanged)
         for metric in self.metricsList:
@@ -520,7 +548,7 @@ class VolumeAlignment(QWidget):
         self.toggleProbeButton.clicked.connect(self.toggleProbe)
 
         self.resetPlotButton = QPushButton('Reset Metric Plot')
-        self.resetPlotButton.clicked.connect(self.resetPlot)
+        self.resetPlotButton.clicked.connect(self.resetPlotImage)
 
         self.viewButton = QPushButton('View Probe with Selected Metric')
         self.viewButton.clicked.connect(self.displayRegion)
@@ -546,6 +574,7 @@ class VolumeAlignment(QWidget):
         self.probeViewLayout.addWidget(self.viewCCFButton)
         self.probeViewLayout.addWidget(self.redCheck)
         self.probeViewLayout.addWidget(self.greenCheck)
+        self.probeViewLayout.addLayout(self.sliderLayout)
 
         self.probeViewLayout.addWidget(self.warpButton)
         self.probeViewLayout.setAlignment(QtCore.Qt.AlignTop)
@@ -554,6 +583,34 @@ class VolumeAlignment(QWidget):
 
         self.setLayout(self.mainLayout)
         self.showMaximized()
+
+    # helper function to threshold image
+    def imageClip(self, color, val):
+        if color == 'red':
+            array = self.int_arrays['red']
+        elif color == 'green':
+            array = self.int_arrays['green']
+        elif color == 'blue':
+            array = self.int_arrays['blue']
+
+        clip = np.clip(array, a_min=val[0], a_max=val[1]) - val[0]
+        clip_8 = (clip * 255. / (val[1] - val[0])).astype('uint8')
+
+        return clip_8
+
+    def redSliderMoved(self):
+        if not self.isRedChecked:
+            self.volArray[:, :, 0] = self.imageClip('red', self.redSlider.value())
+            rotate = np.rot90(self.volArray)
+            flip = np.flipud(rotate)
+            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+
+    def greenSliderMoved(self):
+        if not self.isGreenChecked:
+            self.volArray[:, :, 1] = self.imageClip('green', self.greenSlider.value())
+            rotate = np.rot90(self.volArray)
+            flip = np.flipud(rotate)
+            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
 
     # function to bring mask back 
     def showMaskHelper(self):
@@ -588,6 +645,7 @@ class VolumeAlignment(QWidget):
                 self.showMaskHelper()
         else: # show red channel
             self.volArray[:, :, 0] = self.redOld.copy()
+            self.volArray[:, :, 0] = self.imageClip('red', self.redSlider.value())
             self.isRedChecked = False
 
             if not self.showMask:
@@ -640,6 +698,14 @@ class VolumeAlignment(QWidget):
             popup.setText('{} Distance in mm {:.2f}'.format(self.probeDropDown.currentText(), np.linalg.norm(sorted_dist[i] - sorted_dist[i + 1]) / 100))
             popup.exec_()
 
+    def resetPlotImage(self):
+        self.resetPlot()
+        anchor = [self.plots['unit_density'].channels, self.plots[self.metrics.currentText().lower()].channels, self.anchorPts.copy(), 
+                                                  self.pointsAdded.copy()] 
+
+        self.alignments[self.probeDropDown.currentText()] = anchor 
+
+        self.saveAnchor(anchor)
     # resets the plots
     def resetPlot(self):
         self.plots['unit_density'].resetPlot()
@@ -649,13 +715,11 @@ class VolumeAlignment(QWidget):
         for item in self.lineItems:
             view.removeItem(item)
 
-        for item in self.distItems:
-            view.removeItem(item)
-
         if hasattr(self, 'plItem') and self.prevProbe != self.probeDropDown.currentText():
             view.removeItem(self.plItem)
         
         self.distPoints.clear()
+        self.anchorPts.clear()
         self.lineItems.clear()
         self.pointsAdded.clear()
         self.oldChannels.clear()
@@ -779,11 +843,12 @@ class VolumeAlignment(QWidget):
         self.path = ''
         view = self.image.getView()
 
-        if probe in self.alignments: # already existing alignment has been done, so use that to update display
-            self.alignments[self.prevProbe] = [self.metric, self.plots['unit_density'].channels, self.plots[metric].channels, self.lineItems.copy(), 
-                                              self.pointsAdded.copy()] 
-            self.resetPlot()
-            self.updateDisplay(probe, restore=True)
+        if os.path.exists(os.path.join(self.storageDirectory, 'anchors', '{}_anchors.pickle'.format(probe.replace(' ', '_')))):
+            if probe not in self.alignments:
+                with open(os.path.join(self.storageDirectory, 'anchors', '{}_anchors.pickle'.format(probe.replace(' ', '_'))), 'rb') as f:
+                    anchor = pickle.load(f)
+
+                self.alignments[probe] = anchor
 
             # get metrics path for this probe and day
             probe_let_num = probe[probe.index(' ')+1:]
@@ -799,6 +864,8 @@ class VolumeAlignment(QWidget):
             self.plots['unit_density'].updateMetrics(self.path)
             #self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues) # update display since no existing alignment has been done so far
             self.plots[metric].updateMetrics(self.path)
+            self.resetPlot()
+            self.updateDisplay(probe, restore=True)
             self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues, keep_y=True, old_y=self.alignments[probe][1], points_added=self.alignments[probe][-1])
 
             self.prevProbe = probe
@@ -816,11 +883,7 @@ class VolumeAlignment(QWidget):
 
             if self.prevProbe == '' or self.prevProbe != probe: # new alignment
                 if self.prevProbe != '' and self.prevProbe != probe:
-                    if self.path != '':
-                        # add old alignment to dictionary
-                        self.alignments[self.prevProbe] = [metric, self.plots['unit_density'].channels, self.plots[metric].channels, self.lineItems.copy(), 
-                                                           self.pointsAdded.copy()]
-                    else:
+                    if self.path == '':
                         view.removeItem(self.plots['unit_density'].channelsPlot)
                         view.removeItem(self.plots[metric].channelsPlot)
 
@@ -1004,10 +1067,12 @@ class VolumeAlignment(QWidget):
             click_plot.channelsPlot.setData(pos=np.array(click_plot.channels, dtype=float), adj=np.array(click_plot.adj, dtype=int))
         
             pts = [[t, line_point[1]] for t in range(int(click_plot.channelsPlot.scatterPoint[0]), int(line_point[0]))]
+            self.anchorPts.append(pts)
             h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
             self.lineItems.append(h_line)
         else: # alignment is same as y coord of the channel clicked on
             pts = [[t, line_point[1]] for t in range(int(click_plot.channelsPlot.scatterPoint[0]), int(line_point[0]))]
+            self.anchorPts.append(pts)
             diff = 0
             h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
             self.lineItems.append(h_line)
@@ -1031,6 +1096,19 @@ class VolumeAlignment(QWidget):
         #h_line.setClickable(True)
         h_line.sigClicked.connect(self.removeLine)
 
+        anchor = [self.plots['unit_density'].channels, self.plots[self.metrics.currentText().lower()].channels, self.anchorPts.copy(), 
+                                              self.pointsAdded.copy()] 
+
+        self.alignments[self.probeDropDown.currentText()] = anchor
+        self.saveAnchor(anchor)
+
+    # saves the anchors for the probe
+    def saveAnchor(self, anchor):
+        probe = self.probeDropDown.currentText().replace(' ', '_')
+
+        with open(os.path.join(self.storageDirectory, 'anchors', '{}_anchors.pickle'.format(probe)), 'wb') as f:
+            pickle.dump(anchor, f)
+
     def onclickProbe(self, plot, points):
         if self.plots['unit_density'].channelsPlot.clicked:
             line_point = points[0].pos()
@@ -1049,9 +1127,15 @@ class VolumeAlignment(QWidget):
             popped = self.lineItems.pop(-1) # last alignment done
             view = self.image.getView()
             view.removeItem(popped)
+            self.anchorPts.pop(-1)
             self.pointsAdded.pop(-1)
             self.plots['unit_density'].linearSpacePoints(self.pointsAdded)
             self.plots[self.metrics.currentText().lower()].linearSpacePoints(self.pointsAdded)
+
+            anchor = [self.plots['unit_density'].channels, self.plots[self.metrics.currentText().lower()].channels, self.anchorPts.copy(), 
+                                              self.pointsAdded.copy()] 
+            self.alignments[self.probeDropDown.currentText()] = anchor
+            self.saveAnchor(anchor)
 
     # toggles the mask 
     def toggleCCFRegions(self):
@@ -1107,6 +1191,9 @@ class VolumeAlignment(QWidget):
         with open(os.path.join(self.workingDirectory, self.mouseID, 'images', '{}_labels.pickle'.format(p)), 'rb') as handle:
             self.labels_pos = pickle.load(handle)
 
+        self.int_arrays = {}
+        self.int_arrays['red'] = self.volArray[:, :, 0].copy()
+        self.int_arrays['green'] = self.volArray[:, :, 1].copy()
         # modify based on if red and green channel toggle have been checked or not
         if self.isRedChecked:
             self.redOld = self.volArray[:, :, 0].copy()
@@ -1117,6 +1204,11 @@ class VolumeAlignment(QWidget):
             self.volArray[:, :, 1] = 0
 
         
+        if not self.isRedChecked:
+            self.volArray[:, :, 0] = self.imageClip('red', self.redSlider.value())
+        if not self.isGreenChecked:
+            self.volArray[:, :, 1] = self.imageClip('green', self.greenSlider.value())
+
         #self.volArray = np.array(vol_mask)
         #self.volArray *= 2
         rot = np.rot90(self.volArray)
@@ -1142,21 +1234,25 @@ class VolumeAlignment(QWidget):
         else: # read from dictionary storing saved plots for the probe
             view.addItem(self.plItem)
             plot_items = self.alignments[probe]
-
-            self.plots['unit_density'].channelsPlot.setData(pos=np.array(plot_items[1], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
-            self.plots['unit_density'].channels = plot_items[1].copy()
-            self.plots[self.metrics.currentText().lower()].channelsPlot.setData(pos=np.array(plot_items[2], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
-            self.plots[self.metrics.currentText().lower()].channels = plot_items[2].copy()
+           
+            self.plots['unit_density'].channelsPlot.setData(pos=np.array(plot_items[0], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
+            self.plots['unit_density'].channels = plot_items[0].copy()
+            self.plots[self.metrics.currentText().lower()].channelsPlot.setData(pos=np.array(plot_items[1], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
+            self.plots[self.metrics.currentText().lower()].channels = plot_items[1].copy()
 
 
             view.addItem(self.plots['unit_density'].channelsPlot) # add unit plot
             view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot) # add metric plot
 
-            self.lineItems = plot_items[3].copy() # add line items
+            self.anchorPts = plot_items[2].copy() # add line pts
+            for pts in self.anchorPts:
+                line_item = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
+                self.lineItems.append(line_item)
+
             for item in self.lineItems:
                 view.addItem(item)
 
-            self.pointsAdded = plot_items[4].copy() # restore alignment
+            self.pointsAdded = plot_items[3].copy() # restore alignment
 
         #view.addItem(self.textItem)
         
