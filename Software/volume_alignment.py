@@ -539,7 +539,7 @@ class VolumeAlignment(QWidget):
         self.probeViewLayout.addWidget(self.probeDropDown)
         self.probeViewLayout.addWidget(self.metrics)
         #self.probeViewLayout.addWidget(self.toggleProbeButton)
-        #self.probeViewLayout.addWidget(self.viewButton)
+        self.probeViewLayout.addWidget(self.viewButton)
         self.probeViewLayout.addWidget(self.resetPlotButton)
         self.probeViewLayout.addWidget(self.toggleProbeButton)
         #self.probeViewLayout.addWidget(self.calcDistanceButton)
@@ -692,7 +692,7 @@ class VolumeAlignment(QWidget):
 
         for i in range(len(self.channels)):
             channel = self.channels[i]
-            y_coord = int(np.round(channel[1]) + 80)
+            y_coord = int(np.round(channel[1] + 80))
 
             if y_coord in self.coords:
                 coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
@@ -753,12 +753,14 @@ class VolumeAlignment(QWidget):
         key = self.days[int(probe_let_num[1]) - 1]
         paths = self.waveMetricsPath[key]
 
+        self.path = ''
         for p in paths:
             if 'probe' + probe_let_num[0] in p:
                 self.path = p
                 break
 
-        self.plots[metric].updateMetrics(self.path)
+        if self.path != '':
+            self.plots[metric].updateMetrics(self.path)
         #self.plots[metric].generateMetrics(metric.lower())
 
         if hasattr(self, 'linepts'):
@@ -774,7 +776,9 @@ class VolumeAlignment(QWidget):
     def displayRegion(self):
         probe = self.probeDropDown.currentText()
         metric = self.metrics.currentText().lower()
-        
+        self.path = ''
+        view = self.image.getView()
+
         if probe in self.alignments: # already existing alignment has been done, so use that to update display
             self.alignments[self.prevProbe] = [self.metric, self.plots['unit_density'].channels, self.plots[metric].channels, self.lineItems.copy(), 
                                               self.pointsAdded.copy()] 
@@ -800,35 +804,44 @@ class VolumeAlignment(QWidget):
             self.prevProbe = probe
             self.oldMetric = metric.lower()
         else:
+            # get metrics path for this probe and day
+            probe_let_num = probe[probe.index(' ')+1:]
+
+            key = self.days[int(probe_let_num[1]) - 1]
+            paths = self.waveMetricsPath[key]
+            for p in paths:
+                if 'probe' + probe_let_num[0] in p:
+                    self.path = p
+                    break
+
             if self.prevProbe == '' or self.prevProbe != probe: # new alignment
                 if self.prevProbe != '' and self.prevProbe != probe:
-                    # add old alignment to dictionary
-                    self.alignments[self.prevProbe] = [metric, self.plots['unit_density'].channels, self.plots[metric].channels, self.lineItems.copy(), 
-                                                       self.pointsAdded.copy()] 
+                    if self.path != '':
+                        # add old alignment to dictionary
+                        self.alignments[self.prevProbe] = [metric, self.plots['unit_density'].channels, self.plots[metric].channels, self.lineItems.copy(), 
+                                                           self.pointsAdded.copy()]
+                    else:
+                        view.removeItem(self.plots['unit_density'].channelsPlot)
+                        view.removeItem(self.plots[metric].channelsPlot)
+
                     self.resetPlot()
                     self.updateDisplay(probe)
                 else: # initial display when nothing has been done
                     self.updateDisplay(probe)
 
-                # get metrics path for this probe and day
-                probe_let_num = probe[probe.index(' ')+1:]
+                if self.path != '':
+                    self.plots['unit_density'].updateMetrics(self.path)
+                    self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues) # update display since no existing alignment has been done so far
 
-                key = self.days[int(probe_let_num[1]) - 1]
-                paths = self.waveMetricsPath[key]
+                    self.plots[metric].updateMetrics(self.path)
+                    self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues)
 
-                for p in paths:
-                    if 'probe' + probe_let_num[0] in p:
-                        self.path = p
-                        break
-
-                self.plots['unit_density'].updateMetrics(self.path)
-                self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues) # update display since no existing alignment has been done so far
-
-                self.plots[metric].updateMetrics(self.path)
-                self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues)
-
-                self.prevProbe = probe
-                self.oldMetric = metric.lower()
+                    self.prevProbe = probe
+                    self.oldMetric = metric.lower()
+                else:
+                    popup = QMessageBox()
+                    popup.setText('Couldn\'t find metrics.csv for {}'.format(probe))
+                    popup.exec_()
 
     # helper function to remove the alignment line
     def removeLineHelper(self, y_coord, ind):
@@ -1121,8 +1134,9 @@ class VolumeAlignment(QWidget):
         self.plItem.sigClicked.connect(self.onclickProbe)
 
         if not restore:
-            view.addItem(self.plots['unit_density'].channelsPlot)
-            view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot)
+            if self.path != '':
+                view.addItem(self.plots['unit_density'].channelsPlot)
+                view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot)
 
             view.addItem(self.plItem)
         else: # read from dictionary storing saved plots for the probe
@@ -1133,6 +1147,8 @@ class VolumeAlignment(QWidget):
             self.plots['unit_density'].channels = plot_items[1].copy()
             self.plots[self.metrics.currentText().lower()].channelsPlot.setData(pos=np.array(plot_items[2], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
             self.plots[self.metrics.currentText().lower()].channels = plot_items[2].copy()
+
+
             view.addItem(self.plots['unit_density'].channelsPlot) # add unit plot
             view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot) # add metric plot
 

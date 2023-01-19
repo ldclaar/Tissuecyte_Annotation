@@ -1,3 +1,5 @@
+from concurrent.futures.thread import _worker
+from itertools import count
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,6 +22,7 @@ import pathlib
 import SimpleITK as sitk
 from sklearn.cluster import KMeans
 import visvis as vis
+from preprocess_generation import generateImages
 #class pandasModel(QAbstractTableModel):
 
 parser = argparse.ArgumentParser()
@@ -39,20 +42,17 @@ class AnnotationProbesViewer(QWidget):
         self.workingDirectory = pathlib.Path('{}/{}'.format(self.dir, self.mouseID))
         print('Fetching Data')
         self.storage_directory = pathlib.Path('{}/field_reference'.format(self.dir))
-        #model_directory = '//allen/programs/celltypes/production/0378/informatics/model_september_2017/P56'
         self.model_directory = pathlib.Path('{}/field_reference'.format(self.dir))
-        #input_file = os.path.join( working_directory, 'output_8', 'affine_vol_10.mhd')
-    
-        #affineAligned = sitk.ReadImage( input_file )
-        #affineAligned.SetSpacing((25, 25, 25))
-        #self.field_file = os.path.join( self.storage_directory, 'dfmfld.mhd')
         self.reference_file = os.path.join( self.model_directory, 'average_template_25.nrrd')
 
         self.volume = sitk.GetArrayFromImage(sitk.ReadImage(self.reference_file))
         self.reference = sitk.ReadImage( self.reference_file )
         #self.field = sitk.ReadImage( self.field_file )
 
-        self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
+        if False and os.path.exists(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID))):
+            self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID)))
+        else:
+            self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
         self.updatedAnnotations = self.annotations.copy(deep=True)
 
         self.rgb = {'A1': '(255, 228, 225)', 'A2': '(255, 0, 0)', 'A3': '(240, 128, 128)', 'A4': '(139, 0, 0)',
@@ -126,6 +126,9 @@ class AnnotationProbesViewer(QWidget):
         self.switchButton = QPushButton('Switch Probes')
         self.switchButton.clicked.connect(self.switchProbes)
 
+        self.generateButton = QPushButton('Generate Images')
+        self.generateButton.clicked.connect(self.generateImages)
+
 
         self.updateButton = QPushButton('Reassign Probe')
         self.updateButton.clicked.connect(self.updateProbe)
@@ -162,52 +165,6 @@ class AnnotationProbesViewer(QWidget):
         self.saveButton.clicked.connect(self.saveUpdatedProbes)
 
 
-        """
-        # toggle layouts for each probe
-        self.aCheckLayout = QGridLayout()
-        self.bCheckLayout = QGridLayout()
-        self.cCheckLayout = QGridLayout()
-        self.dCheckLayout = QGridLayout()
-        self.eCheckLayout = QGridLayout()
-        self.fCheckLayout = QGridLayout()
-        self.checkLayout = QVBoxLayout()
-        self.probe_checks = {} # dictionary to see if probe has been checked or not
-
-        for i in range(1, 7):
-            a_cbox = QCheckBox('A%d' %(i))
-            b_cbox = QCheckBox('B%d' %(i))
-            c_cbox = QCheckBox('C%d' %(i))
-            d_cbox = QCheckBox('D%d' %(i))
-            e_cbox = QCheckBox('E%d' %(i))
-            f_cbox = QCheckBox('F%d' %(i))
-
-            self.aCheckLayout.addWidget(a_cbox, 0, i)
-            self.bCheckLayout.addWidget(b_cbox, 0, i)
-            self.cCheckLayout.addWidget(c_cbox, 0, i)
-            self.dCheckLayout.addWidget(d_cbox, 0, i)
-            self.eCheckLayout.addWidget(e_cbox, 0, i)
-            self.fCheckLayout.addWidget(f_cbox, 0, i)
-
-            self.probe_checks['Probe A%d' %(i)] = a_cbox
-            self.probe_checks['Probe B%d' %(i)] = b_cbox
-            self.probe_checks['Probe C%d' %(i)] = c_cbox
-            self.probe_checks['Probe D%d' %(i)] = d_cbox
-            self.probe_checks['Probe E%d' %(i)] = e_cbox
-            self.probe_checks['Probe F%d' %(i)] = f_cbox
-
-        self.checkLabel = QLabel('Select probes to show/hide')
-
-        self.checkLayout.addWidget(self.checkLabel)
-        self.checkLayout.addLayout(self.aCheckLayout)
-        self.checkLayout.addLayout(self.bCheckLayout)
-        self.checkLayout.addLayout(self.cCheckLayout)
-        self.checkLayout.addLayout(self.dCheckLayout)
-        self.checkLayout.addLayout(self.eCheckLayout)
-        self.checkLayout.addLayout(self.fCheckLayout)
-        self.toggleButton = QPushButton('Update Probe Trajectory Display')
-        self.toggleButton.clicked.connect(self.updateDisplay)
-        self.checkLayout.addWidget(self.toggleButton)
-        """
         self.labelLayout.addLayout(self.reassignSwitchLayout)
         self.labelLayout.addWidget(self.checkLabel)
         self.labelLayout.addLayout(self.checkLayout)
@@ -216,6 +173,7 @@ class AnnotationProbesViewer(QWidget):
         self.hButtonLayout.addWidget(self.saveButton)
         self.labelLayout.addLayout(self.hButtonLayout)
         self.labelLayout.setAlignment(QtCore.Qt.AlignBottom)
+        self.labelLayout.addWidget(self.generateButton)
 
         self.scatterLayout.addWidget(self.main_frame)
         self.scatterLayout.addLayout(self.labelLayout)
@@ -230,15 +188,45 @@ class AnnotationProbesViewer(QWidget):
         self.setLayout(self.mainLayout)
         self.showMaximized()
 
+    # generate the image slice, mask, and overlay for the probe
+    def generateImages(self):
+        pre = generateImages(self.mouseID)
+        probes_generate = []
+        probes = sorted(self.annotations['probe_name'].unique())
+        counts_original = self.annotations.groupby('probe_name').count().reset_index()
+        print(counts_original)
+        counts_new = self.updatedAnnotations.groupby('probe_name').count().reset_index()
+        i = 0
+
+        path = pathlib.Path('{}/images'.format(self.workingDirectory))
+
+        if not os.path.exists(path):
+            os.mkdir(path)
+
+            for probe in probes:
+                pre.imageGenerate(probe)
+        else:
+            for probe in probes:
+                c1 = counts_original.loc[counts_original['probe_name'] == probe]
+                c2 = counts_new.loc[counts_new['probe_name'] == probe]
+
+                if c1['AP'][i] != c2['AP'][i]:
+                    print(probe)
+                    pre.imageGenerate(probe)
+
+                i += 1
+
+    # switches the probe assignment
     def switchProbes(self):
-        old_probe = 'Probe' + ' ' + self.probeOld.currentText() + self.trialOld.currentText()
-        new_probe = 'Probe' + ' ' + self.probeNew.currentText() + self.trialNew.currentText()
+        old_probe = 'Probe' + ' ' + self.probeOld.currentText() + self.trialOld.currentText() # 1st probe to switch
+        new_probe = 'Probe' + ' ' + self.probeNew.currentText() + self.trialNew.currentText() # second probe to switch
 
         self.probeOld.setCurrentText('Current Probe')
         self.trialOld.setCurrentText('Current Number')
         self.probeNew.setCurrentText('New Probe')
         self.trialNew.setCurrentText('New Number')
 
+        # switch probes
         self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == new_probe, 'probe_name'] = 'temp'
         self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == old_probe, 'probe_name'] = new_probe
         self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == 'temp', 'probe_name'] = old_probe
@@ -354,7 +342,11 @@ class AnnotationProbesViewer(QWidget):
                 min_x_index = ind
                 break
 
-        self.updatedAnnotations.drop([min_x_index], inplace=True)
+        try:
+            self.updatedAnnotations.drop([min_x_index], inplace=True)
+        except KeyError:
+            pass
+
         self.updatedAnnotations.reset_index(drop=True, inplace=True)
         self.update_plot(self.updatedAnnotations) 
         self.update_plot_2d(self.updatedAnnotations)
@@ -466,7 +458,8 @@ class AnnotationProbesViewer(QWidget):
         self.ax.axis.axisColor = 'w'
         vis.cla()
 
-        vis.volshow3(self.volume)
+        vol = np.rot90(np.rot90(np.rot90(self.volume, axes=(1, 2)), axes=(0, 1)), axes=(1,2))
+        vis.volshow3(vol)
         probes = probe_annotations['probe_name'].unique()
         #self.axes.contourf(self.reference[:, 0], self.reference[:, 1], self.image[:, 2])
         #self.axes.set_xticklabels([])
@@ -499,7 +492,7 @@ class AnnotationProbesViewer(QWidget):
                 if linepts[-1,1] - linepts[0,1] < 0:
                     linepts = np.flipud(linepts)
 
-
+                #linepts = np.fliplr(linepts)
                 if probe[0] in self.probe_checks and 'orig_Probe' not in probe_trial:
                     if not self.probe_checks[probe[0]].isChecked(): # display probe
                         #self.axes.scatter(x,y,c=self.colors[probe].replace(' ', ''), s=5, alpha=0.95)
@@ -513,7 +506,7 @@ class AnnotationProbesViewer(QWidget):
                     legend.append(probe_trial)
                     color_grey = (211, 211, 211)
                     color = tuple(t / 255 for t in color_grey)
-                    vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color_grey, axes=self.ax)
+                    vis.plot(linepts[:, 2], linepts[:, 1], -linepts[:, 0], lw=3, lc=color_grey, axes=self.ax)
         
                 self.probe_lines[probe_trial] = linepts
 
