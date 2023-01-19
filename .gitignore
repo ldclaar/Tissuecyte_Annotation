@@ -9,3 +9,4 @@
 /Software/__pycache__/warp_image.cpython-39.pyc
 /Software/__pycache__/warp_image.cpython-37.pyc
 /Software/output.html
+*.pyc
