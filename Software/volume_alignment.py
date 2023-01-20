@@ -793,6 +793,8 @@ class VolumeAlignment(QWidget):
         df_final['channel_areas'] = channel_areas
         df_final.to_csv(os.path.join(self.storageDirectory, '{}_channels_{}_warped.csv'.format(probe_name.replace(' ', '_'), mouse_id)), index=False)
 
+        for index, row in df_final.iterrows():
+            plt.scatter(row.ML, row.DV)
         # group by the region area and plot average for that region
         grouped = df_final.groupby('channel_areas').mean()
         

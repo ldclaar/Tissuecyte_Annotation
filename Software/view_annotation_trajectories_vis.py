@@ -23,13 +23,12 @@ import SimpleITK as sitk
 from sklearn.cluster import KMeans
 import visvis as vis
 from preprocess_generation import generateImages
+from scipy.spatial.transform import Rotation as R
 #class pandasModel(QAbstractTableModel):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
 
-backend = 'pyqt5'
-app = vis.use(backend)
 
 class AnnotationProbesViewer(QWidget):
     # initialize fields
@@ -45,7 +44,7 @@ class AnnotationProbesViewer(QWidget):
         self.model_directory = pathlib.Path('{}/field_reference'.format(self.dir))
         self.reference_file = os.path.join( self.model_directory, 'average_template_25.nrrd')
 
-        self.volume = sitk.GetArrayFromImage(sitk.ReadImage(self.reference_file))
+        self.volume = sitk.GetArrayFromImage(sitk.ReadImage(self.reference_file)).T
         self.reference = sitk.ReadImage( self.reference_file )
         #self.field = sitk.ReadImage( self.field_file )
 
@@ -231,6 +230,8 @@ class AnnotationProbesViewer(QWidget):
         self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == old_probe, 'probe_name'] = new_probe
         self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == 'temp', 'probe_name'] = old_probe
 
+        print(self.updatedAnnotations)
+
         self.update_plot(self.updatedAnnotations)
         self.update_plot_2d(self.updatedAnnotations)
 
@@ -240,7 +241,7 @@ class AnnotationProbesViewer(QWidget):
 
         self.updatedAnnotations.to_csv(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID)))
 
-        probes = self.updatedAnnotations['probe_name'].unqiue()
+        probes = self.updatedAnnotations['probe_name'].unique()
 
         for probe in probes:
             df_probe = self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == probe]
@@ -445,7 +446,7 @@ class AnnotationProbesViewer(QWidget):
         #self.axes.set_ylabel('DV')
         self.axes.set_title('2D View of Probe Annotations')
         #self.axes.set_zlabel('AP')
-        self.axes.imshow(self.volume[:, :, :].T.sum(axis=0), cmap='gray')
+        self.axes.imshow(self.volume[:, :, :].sum(axis=0), cmap='gray')
         #self.axes.plot_trisurf(self.volume[:319, 0], self.volume[:, 1], self.volume[:, 2])
         self.canvas.draw()
         plt.show()
@@ -458,9 +459,13 @@ class AnnotationProbesViewer(QWidget):
         self.ax.axis.axisColor = 'w'
         vis.cla()
 
-        vol = np.rot90(np.rot90(np.rot90(self.volume, axes=(1, 2)), axes=(0, 1)), axes=(1,2))
+        #vol = np.flipud(self.volume)
+        #vol = np.rot90(self.volume, k=2)
+        vol = np.rot90(self.volume, k=2, axes=(0,2))
         vis.volshow3(vol)
         probes = probe_annotations['probe_name'].unique()
+
+        temp = self.volume.shape[2] 
         #self.axes.contourf(self.reference[:, 0], self.reference[:, 1], self.image[:, 2])
         #self.axes.set_xticklabels([])
         #self.axes.set_yticklabels([])
@@ -469,8 +474,9 @@ class AnnotationProbesViewer(QWidget):
         
         print(self.volume.shape)
         legend = []
+        r = R.from_rotvec([0, np.pi, 0])
 
-        for probe_idx, probe_trial in enumerate(probes):
+        for probe_idx, probe_trial in enumerate(sorted(probes)):
             probe = probe_trial[probe_trial.index(' ') + 1:]
             x = probe_annotations[probe_annotations.probe_name == probe_trial].ML / 2.5
             y = probe_annotations[probe_annotations.probe_name == probe_trial].DV / 2.5
@@ -492,7 +498,16 @@ class AnnotationProbesViewer(QWidget):
                 if linepts[-1,1] - linepts[0,1] < 0:
                     linepts = np.flipud(linepts)
 
-                #linepts = np.fliplr(linepts)
+                #linepts = r.apply(linepts)
+                linepts[:, 0] -= self.volume.shape[0] / 2
+                linepts[:, 1] -= self.volume.shape[1] / 2
+                linepts[:, 2] -= self.volume.shape[2] / 2
+                linepts = r.apply(linepts)
+
+                linepts[:, 0] += self.volume.shape[0] / 2
+                linepts[:, 1] += self.volume.shape[1] / 2
+                linepts[:, 2] += self.volume.shape[2] / 2
+
                 if probe[0] in self.probe_checks and 'orig_Probe' not in probe_trial:
                     if not self.probe_checks[probe[0]].isChecked(): # display probe
                         #self.axes.scatter(x,y,c=self.colors[probe].replace(' ', ''), s=5, alpha=0.95)
@@ -500,13 +515,13 @@ class AnnotationProbesViewer(QWidget):
                         color = tuple(t / 255 for t in col)
                         #vis.plot(x, y, z, mc=color, mw=5, ms='s', lw=0, mec=color, axes=self.ax)
                         #print(l.points)
-                        vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color, axes=self.ax)
+                        vis.plot(temp - linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color, axes=self.ax)
                         legend.append(probe_trial)
                 else: # make probe light grey, needs to be reassigned later
                     legend.append(probe_trial)
                     color_grey = (211, 211, 211)
                     color = tuple(t / 255 for t in color_grey)
-                    vis.plot(linepts[:, 2], linepts[:, 1], -linepts[:, 0], lw=3, lc=color_grey, axes=self.ax)
+                    vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color_grey, axes=self.ax)
         
                 self.probe_lines[probe_trial] = linepts
 
@@ -519,6 +534,8 @@ class AnnotationProbesViewer(QWidget):
 if __name__ == '__main__':
     args = parser.parse_args()
     mouse_id = args.mouseID
+    backend = 'pyqt5'
+    app = vis.use(backend)
 
     app.Create()
     m = AnnotationProbesViewer(mouse_id)
