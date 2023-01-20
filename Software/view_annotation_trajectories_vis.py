@@ -48,7 +48,7 @@ class AnnotationProbesViewer(QWidget):
         self.reference = sitk.ReadImage( self.reference_file )
         #self.field = sitk.ReadImage( self.field_file )
 
-        if False and os.path.exists(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID))):
+        if os.path.exists(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID))):
             self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID)))
         else:
             self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
