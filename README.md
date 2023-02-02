@@ -89,14 +89,17 @@ The probe and the desired metric that will be displayed along with the unit dens
 The app has the following components:
   * Zoom in/out - use the mouse wheel
   * Volume alignment: Zoom in and select a channel (point) on the unit density plot. Then click on a corresponding region on the probe and a yellow horizontal line should connect from the channel to that point on the probe. The plots will then shift/linearly space depending on the alignment made
-  * Remove Alignment: Click on a yellow line to remove that alignment. Note this works best when zooming out
+  * Remove Alignment: Click on a yellow line. This will turn it white as it has been selected. Then hit the delete button to remove it. Note this works best when zooming out
   * Remove Last Alignment: Hit the left arrow key
   * Reset Metric Plot will clear the alignments and reset both plots to the original positions
   * Toggle Probe will show/hide the red line
   * Toggle Mask will show/hide the CCF mask
   * To change a metric, choose from the drop down
   * To view a different probe, select from the probe drop down
-  * Warp to CCF: Warps channels to CCF and displays regions. Output CSV is stored in the following location `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_channels_mouseID_warped.csv`
+  * Warp seleted anchor: Warps the currently selected anchor (white line) and displays the ccf point in the last column. To adjust anchor, use arrow keys and then check again if needed
+  * Warp selected probe: Warps the channels for the probe currently displayed and then shows the output of the warping. The output consists of the areas shown on the image slice and a plot that shows the areas along with the anchors.
+  * Warp all probes to CCF: Warps channels to CCF for all probes that have alignments. Output CSV is stored in the following location `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_channels_mouseID_warped.csv`
+  * View Warped Channels for Probe: View the channel areas. This displays two things: the channel areas displayed back on the image and a separate plot of a CCF slice that the probe goes through with the channel areas. Make sure to close the separate plot before moving to another probe
   * Tip: Start Alignment at the top of the plot and then work in a top-down manner
 
 
