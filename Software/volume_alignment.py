@@ -1,3 +1,4 @@
+#from this import d
 from tkinter import N
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -28,17 +29,24 @@ from PIL import ImageDraw
 from PIL import ImageFont
 import pathlib
 import json
+import shutil
+from zipfile import ZipFile
+import glob
+import multiprocessing as mp
+from joblib import Parallel, delayed
+import threading
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
 
 SCALING_FACTOR = 1.5
 DEFAULT_COLOR_VALUES = [[0, 256], [0, 256], [0, 1000]]
+DEFAULT_COLOR_VALUES_CCF = [[0, 3000], [0, 3000], [0, 1000]]
 
 # graph represents a metric plot that can be clicked on
 # pyqtgraph documentation
 class Graph(pg.GraphItem):
-    def __init__(self):
+    def __init__(self, label=None):
         self.dragPoint = None
         self.dragOffset = None
         self.textItems = []
@@ -46,17 +54,18 @@ class Graph(pg.GraphItem):
         self.clicked = False
         pg.GraphItem.__init__(self)
         self.scatter.sigClicked.connect(self.onclick)
-
+        self.label = label
         
     def setData(self, **kwds):
         self.text = kwds.pop('text', [])
         self.data = kwds
+
         if 'pos' in self.data:
             npts = self.data['pos'].shape[0]
             self.data['data'] = np.empty(npts, dtype=[('index', int)])
             self.data['data']['index'] = np.arange(npts)
-        self.setTexts(self.text)
-        self.updateGraph()
+            self.setTexts(self.text)
+            self.updateGraph()
         
     def setTexts(self, text):
         for i in self.textItems:
@@ -119,12 +128,16 @@ class Graph(pg.GraphItem):
         points[0].setPen(QtGui.QPen(QColor('green')))
         self.lastPoint = points[0]
         self.scatterPoint = points[0].pos()
+        
+        channel = self.scatter.pointsAt(self.scatterPoint)[0].data()[0]
+        if self.label is not None:
+            self.label.setText('Channel %d' %(channel))
 
 # class for metric plot
 # each metric plot is represented by a plot display item which uses the graph class above
 class PlotDisplayItem():
     # create default image
-    def __init__(self, measurement, waveform, metrics, probe_annotations, mouse_id, metrics_list):
+    def __init__(self, measurement, waveform_metrics, probe_annotations, mouse_id, metrics_list, label=None):
         self.width = int(4000) #default = coronal view
         self.height = int(4000)
         self.remove = True
@@ -132,17 +145,18 @@ class PlotDisplayItem():
 
         self.probeAnnotations = probe_annotations
         self.mouseID = mouse_id
-        self.waveform = waveform
-        self.metrics = metrics
         self.metricsList = metrics_list
         self.otherPlots = []
         self.oldChannels = [] # stack for undoing lines
-
-        self.waveform_metrics = self.waveform.merge(self.metrics, on='cluster_id')
+        self.texts = ['Channel %d' %(i) for i in range(383, -1, -1)]
+        self.waveform_metrics = waveform_metrics
         self.measurement = measurement
         #self.generateMetrics(measurement)
 
-        self.channelsPlot = Graph()
+        if label is not None:
+            self.channelsPlot = Graph(label)
+        else:
+            self.channelsPlot = Graph()
         #self.adj = [[i, i + 1] for i in range(len(self.channelsOriginal) - 1)]
         self.textItem = pg.TextItem(measurement.upper(), anchor=(1, 1))
 
@@ -180,6 +194,10 @@ class PlotDisplayItem():
             smoothed = np.convolve(x_val, conv, mode='same')
             smoothed = smoothed / np.sum(conv)
             self.channelsOriginal = [[smoothed[i] - 100, self.channelsOriginal[i][1]] for i in range(384)]
+        else:
+            self.processMetrics()
+            self.generateMetricChannels(measurement, scale_value=1/100, shift_value=250)
+        """
         elif self.measurement == 'spread':
             self.processMetrics()
             self.generateMetricChannels(measurement, scale_value=0, shift_value=300)
@@ -210,6 +228,7 @@ class PlotDisplayItem():
         elif self.measurement == 'presence_ratio':
             self.processMetrics()
             self.generateMetricChannels(measurement, scale_value=1/15, shift_value=250)
+        """
 
     # helper function to generate the metric channels
     # metric: string
@@ -221,38 +240,58 @@ class PlotDisplayItem():
         values = self.averageMetricsChannels[metric]
 
         if 'velocity' in metric:
+            values = (2 * (values - values.min()) / (values.max() - values.min())) - 1
+        else:
+            values = (values - values.min()) / (values.max() - values.min())
+        """
+        if 'velocity' in metric:
             values = values / scale_value
             #values = values / values.abs().max()
             values = values.to_numpy().tolist()
-            conv = np.ones(10)
+            conv = np.ones(1)
         else:
             conv = np.ones(10)
+        """
+        conv = np.ones(10)
         #peak_values = [int(p) for p in peak_values]
         self.channelsOriginal = []
 
         for i in range(384):
             if i in peak_values:
+                """
                 index = peak_values.index(i)
                 if not pd.isna(values[index]):
                     self.channelsOriginal.append([values[index], 384 - i - 1 + 256])
                 else:
-                    self.channelsOriginal.append([0, 384 - i - 1 + 256])
+                    self.channelsOriginal.append([np.nan, 384 - i - 1 + 256])
                 #conv[index] = 1
+                """
+                index = peak_values.index(i)
+                self.channelsOriginal.append([values[index], 384 - i - 1 + 256])
             else:
                 self.channelsOriginal.append([0, 384 - i - 1 + 256])
         
         x_val = [p[0] for p in self.channelsOriginal]
+        print('X_val', len(x_val))
         smoothed = np.convolve(x_val, conv, mode='same')
         smoothed = smoothed / np.sum(conv)
         #print(smoothed.shape)
         for i in range(384):
-            if scale_value != 0 and 'velocity' not in metric:
+            if scale_value != 0:
                 self.channelsOriginal[i] = [(smoothed[i] / scale_value) - shift_value, self.channelsOriginal[i][1]]
             else:
                 self.channelsOriginal[i] = [(smoothed[i]) - shift_value, self.channelsOriginal[i][1]]
         
     def processMetrics(self):
-        self.averageMetricsChannels = self.waveform_metrics.groupby('peak_channel').mean().reset_index()
+        self.waveform_metrics = self.waveform_metrics.drop(columns=['epoch_name_quality_metrics', 'epoch_name_waveform_metrics', 'quality'])
+        #self.wnorm = (2 * (self.waveform_metrics - self.waveform_metrics.min()) / (self.waveform_metrics.max() - self.waveform_metrics.min())) - 1
+
+        #self.wnorm['peak_channel'] = self.waveform_metrics['peak_channel']
+        self.averageMetricsChannels = (self.waveform_metrics.groupby('peak_channel').mean().reset_index())
+
+
+        #print(self.averageMetricsChannels)
+        #self.averageMetricsChannels = (self.averageMetricsChannels - self.averageMetricsChannels.mean()) / self.averageMetricsChannels.std()
         #self.averageMetricsChannels = self.averageMetricsChannels.rolling(rolling_value, win_type='boxcar').mean()
 
     # when a new probe is displayed
@@ -390,12 +429,14 @@ class VolumeAlignment(QWidget):
         self.mouseID = mouse_id
         self.title = 'Volume Alignment for Mouse {}'.format(self.mouseID)
         self.probe = 'ProbeA'
-        self.waveform = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.{}-AP/waveform_metrics.csv'.format(self.probe)))
-        self.metrics = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.{}-AP/metrics_test.csv'.format(self.probe)))
+        #self.waveform = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.{}-AP/waveform_metrics.csv'.format(self.probe)))
+        #self.metrics = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.{}-AP/metrics_test.csv'.format(self.probe)))
         
         self.basePath = pathlib.Path('//allen/programs/mindscope/workgroups/np-exp')
         self.waveMetricsPath = generate_metrics_path_days(self.basePath, self.mouseID)
         self.days = sorted(list(self.waveMetricsPath.keys()))
+        self.waveform_metrics = pd.read_csv(os.path.join(self.basePath, '1178173272_608671_20220518/1178173272_608671_20220518_probeB_sorted/continuous/Neuropix-PXI-100.0', 
+                                                         'metrics.csv'))
 
         self.initUI()
         self.displayRegion()
@@ -409,19 +450,26 @@ class VolumeAlignment(QWidget):
         self.showMask = True
         self.prevProbe = ''
 
-        im8 = np.ones((self.height,self.width),dtype='uint8')*255
-        self.image = pg.image(im8)
+        self.im8 = np.ones((self.height,self.width),dtype='uint8')*255
+        self.image = pg.image(self.im8)
         self.image.ui.histogram.hide()
         self.image.ui.roiBtn.hide()
         self.image.ui.menuBtn.hide()
         self.image.setObjectName('image')
 
-        self.imageMask = pg.image(im8)
+        self.imageMask = pg.image(self.im8)
         self.imageMask.ui.histogram.hide()
         self.imageMask.ui.roiBtn.hide()
         self.imageMask.ui.menuBtn.hide()
         self.imageMask.setObjectName('image')
         #self.image.setImage(im8.transpose())
+
+        # image refinement
+        self.imageRefine = pg.image(self.im8)
+        self.imageRefine.ui.histogram.hide()
+        self.imageRefine.ui.roiBtn.hide()
+        self.imageRefine.ui.menuBtn.hide()
+        self.imageRefine.setObjectName('image')
 
         self.pointsAdded = [] # y coords of alignments done
         self.channelCoords = {}
@@ -430,6 +478,12 @@ class VolumeAlignment(QWidget):
         self.distPoints = []
         self.anchorPts = []
         self.s = []
+        self.textItems = []
+        self.ccfTextItems = []
+        self.ccfPlotItems = []
+        self.anchorItems = []
+        self.anchorPos = []
+        self.anchorText = []
         self.pos = []
         self.myFont = ImageFont.load_default()
         self.alignments = {}
@@ -444,6 +498,7 @@ class VolumeAlignment(QWidget):
         print(self.field_file)
         self.reference_file = os.path.join( self.modelDirectory, 'average_template_25.nrrd')
         
+        print('Loading app...')
         if not os.path.exists(os.path.join(self.storageDirectory, 'anchors')):
             os.mkdir(os.path.join(self.storageDirectory, 'anchors'))
         
@@ -459,11 +514,20 @@ class VolumeAlignment(QWidget):
         self.reference = sitk.ReadImage( self.reference_file )
         self.field = sitk.ReadImage( self.field_file)
         self.probeAnnotations = pd.read_csv(os.path.join(self.storageDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
+        self.metricsList = ['Spread', 'Amplitude', 'Isi_Viol', 'NN_Hit_Rate', 'Firing_Rate', 'Presence_Ratio', 'Velocity_Above', 'Velocity_Below']
+        self.label = QLabel('Channel Clicked')
+        self.label.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.label.setStyleSheet('border: 1px solid black;')
 
+        #self.loadCCFVolume()
+        """
         # metrics list and plots to show
         self.metricsList = ['Spread', 'Amplitude', 'Isi_Viol', 'NN_Hit_Rate', 'Firing_Rate', 'Presence_Ratio', 'Velocity_Above', 'Velocity_Below']
+        self.label = QLabel('Channel Clicked')
+        self.label.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.label.setStyleSheet('border: 1px solid black;')
 
-        self.unitPlot = PlotDisplayItem('unit_density', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
+        self.unitPlot = PlotDisplayItem('unit_density', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList, label=self.label)
         self.spreadPlot = PlotDisplayItem('spread', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.isiPlot = PlotDisplayItem('isi_viol', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
         self.firePlot = PlotDisplayItem('firing_rate', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
@@ -478,7 +542,16 @@ class VolumeAlignment(QWidget):
         self.plots = {'unit_density': self.unitPlot, 'spread': self.spreadPlot, 'velocity_above': self.velocityAbovePlot, 'firing_rate': self.firePlot,
                       'velocity_below': self.velocityBelowPlot, 'amplitude': self.ampPlot, 'isi_viol': self.isiPlot, 'nn_hit_rate': self.hitRatePlot,
                       'presence_ratio': self.presPlot}
-        
+        """
+        self.plots = {}
+        self.waveform_metrics.drop(columns=['Unnamed: 0', 'cluster_id', 'epoch_name_quality_metrics', 'epoch_name_waveform_metrics', 'quality'], inplace=True)
+        print(self.waveform_metrics.columns)
+        for column in self.waveform_metrics.columns:
+            if column == 'peak_channel':
+                self.plots['unit_density'] = PlotDisplayItem('unit_density', self.waveform_metrics, self.probeAnnotations, self.mouseID, self.metricsList, label=self.label)
+            else:
+                self.plots[column] = PlotDisplayItem(column, self.waveform_metrics, self.probeAnnotations, self.mouseID, self.metricsList, label=self.label)
+
         for plot in self.plots:
             others = [k for k in self.plots if k != plot]
             for other in others:
@@ -492,6 +565,7 @@ class VolumeAlignment(QWidget):
 
         self.imageLayout.addWidget(self.image)
         self.imageLayout.addWidget(self.imageMask)
+        self.imageLayout.addWidget(self.imageRefine)
 
         # ui features: probe/metric drop downs, red/green toggle, toggle probe, toggle mask, warp to ccf
         self.probes = self.probeAnnotations['probe_name'].unique()
@@ -502,6 +576,7 @@ class VolumeAlignment(QWidget):
         for probe in sorted(self.probes):
             self.probeDropDown.addItem(probe)
 
+        self.probeDropDown.setFocusPolicy(QtCore.Qt.NoFocus)
         self.probeDropDown.currentTextChanged.connect(self.displayRegion)
         self.redCheck = QCheckBox('Toggle Red')
         self.redCheck.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -540,28 +615,67 @@ class VolumeAlignment(QWidget):
         self.sliderLayout.addRow('Green Slider', self.greenSlider)
 
         self.metrics = QComboBox()
+        self.metrics.setFocusPolicy(QtCore.Qt.NoFocus)
         self.metrics.currentTextChanged.connect(self.metricChanged)
-        for metric in self.metricsList:
-            self.metrics.addItem(metric)
+        for metric in self.waveform_metrics.columns:
+            if metric != 'peak_channel':
+                self.metrics.addItem(metric)
 
         self.toggleProbeButton = QPushButton('Toggle Probe')
         self.toggleProbeButton.clicked.connect(self.toggleProbe)
+        self.toggleProbeButton.setFocusPolicy(QtCore.Qt.NoFocus)
 
         self.resetPlotButton = QPushButton('Reset Metric Plot')
         self.resetPlotButton.clicked.connect(self.resetPlotImage)
+        self.resetPlotButton.setFocusPolicy(QtCore.Qt.NoFocus)
 
         self.viewButton = QPushButton('View Probe with Selected Metric')
         self.viewButton.clicked.connect(self.displayRegion)
+        self.viewButton.setFocusPolicy(QtCore.Qt.NoFocus)
 
         self.calcDistanceButton = QPushButton('Calculate Probe Distance')
         self.calcDistanceButton.clicked.connect(self.calcDistance)
+        self.calcDistanceButton.setFocusPolicy(QtCore.Qt.NoFocus)
 
         self.viewCCFButton = QPushButton('Toggle Mask')
         self.viewCCFButton.clicked.connect(self.toggleCCFRegions)
+        self.viewCCFButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.showCCF = False
 
-        self.warpButton = QPushButton('Warp to CCF')
-        self.warpButton.clicked.connect(self.warpChannels)
+        self.warpAnchorButton = QPushButton('Warp Selected Anchor')
+        self.warpAnchorButton.clicked.connect(self.warpSelectedAnchor)
+        self.warpAnchorButton.setFocusPolicy(QtCore.Qt.NoFocus)
+
+        self.warpButton = QPushButton('Warp Selected Probe to CCF')
+        self.warpButton.clicked.connect(self.warpProbe)
+        self.warpButton.setFocusPolicy(QtCore.Qt.NoFocus)
+
+        self.warpAllButton = QPushButton('Warp All Probes to CCF')
+        self.warpAllButton.clicked.connect(self.warpAllProbes)
+        self.warpAllButton.setFocusPolicy(QtCore.Qt.NoFocus)
+
+        self.viewWarpedButton = QPushButton('View Warped Channels for Selected Probe')
+        self.viewWarpedButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.viewWarpedButton.clicked.connect(self.viewWarpedChannels)
+
+
+        self.nextAnchor = QPushButton('View next anchor')
+        self.nextAnchor.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.nextAnchor.clicked.connect(self.viewNextAnchor)
+        self.prevAnchor = QPushButton('View prev anchor')
+        self.prevAnchor.clicked.connect(self.viewPrevAnchor)
+        self.prevAnchor.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.approveAnchor = QPushButton('Approve Anchor')
+        self.approveAnchor.setFocusPolicy(QtCore.Qt.NoFocus)
+
+        self.anchorRefineLayout = QVBoxLayout()
+        self.anchorRefineLayout.addWidget(self.warpAnchorButton)
+        self.anchorRefineLayout.addWidget(self.warpButton)
+        self.anchorRefineLayout.addWidget(self.warpAllButton)
+        self.anchorRefineLayout.addWidget(self.viewWarpedButton)
+        #self.anchorRefineLayout.addWidget(self.nextAnchor)
+        #self.anchorRefineLayout.addWidget(self.prevAnchor)
+        #self.anchorRefineLayout.addWidget(self.approveAnchor)
 
         self.probeViewLayout = QHBoxLayout()
         self.probeViewLayout.addWidget(self.probeDropDown)
@@ -572,14 +686,19 @@ class VolumeAlignment(QWidget):
         self.probeViewLayout.addWidget(self.toggleProbeButton)
         #self.probeViewLayout.addWidget(self.calcDistanceButton)
         self.probeViewLayout.addWidget(self.viewCCFButton)
+        #self.probeViewLayout.addWidget(self.label)
         self.probeViewLayout.addWidget(self.redCheck)
         self.probeViewLayout.addWidget(self.greenCheck)
         self.probeViewLayout.addLayout(self.sliderLayout)
 
-        self.probeViewLayout.addWidget(self.warpButton)
+        #self.probeViewLayout.addWidget(self.warpButton)
+        self.probeViewLayout.addLayout(self.anchorRefineLayout)
         self.probeViewLayout.setAlignment(QtCore.Qt.AlignTop)
         self.mainLayout.addLayout(self.imageLayout)
         self.mainLayout.addLayout(self.probeViewLayout)
+
+        self.warped = False
+        self.readAnchors()
 
         self.setLayout(self.mainLayout)
         self.showMaximized()
@@ -601,16 +720,24 @@ class VolumeAlignment(QWidget):
     def redSliderMoved(self):
         if not self.isRedChecked:
             self.volArray[:, :, 0] = self.imageClip('red', self.redSlider.value())
-            rotate = np.rot90(self.volArray)
-            flip = np.flipud(rotate)
-            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+
+            if not self.showMask:
+                rotate = np.rot90(self.volArray)
+                flip = np.flipud(rotate)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            else:
+                self.showMaskHelper()
 
     def greenSliderMoved(self):
         if not self.isGreenChecked:
             self.volArray[:, :, 1] = self.imageClip('green', self.greenSlider.value())
-            rotate = np.rot90(self.volArray)
-            flip = np.flipud(rotate)
-            self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+
+            if not self.showMask:
+                rotate = np.rot90(self.volArray)
+                flip = np.flipud(rotate)
+                self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
+            else:
+                self.showMaskHelper()
 
     # function to bring mask back 
     def showMaskHelper(self):
@@ -710,9 +837,19 @@ class VolumeAlignment(QWidget):
     def resetPlot(self):
         self.plots['unit_density'].resetPlot()
         self.plots[self.metrics.currentText().lower()].resetPlot()
-
+        self.showProbe = True
         view = self.image.getView()
+        self.clearCCFImage(clear_anchor=True)
         for item in self.lineItems:
+            view.removeItem(item)
+
+        for item in self.textItems:
+            view.removeItem(item)
+
+        for item in self.ccfTextItems:
+            view.removeItem(item)
+
+        for item in self.ccfPlotItems:
             view.removeItem(item)
 
         if hasattr(self, 'plItem') and self.prevProbe != self.probeDropDown.currentText():
@@ -721,97 +858,341 @@ class VolumeAlignment(QWidget):
         self.distPoints.clear()
         self.anchorPts.clear()
         self.lineItems.clear()
+        self.textItems.clear()
+        self.ccfTextItems.clear()
+        self.ccfPlotItems.clear()
+        self.anchorItems.clear()
+        self.anchorPos.clear()
         self.pointsAdded.clear()
         self.oldChannels.clear()
 
     # hides/shows the probe
     def toggleProbe(self):
-        #print(self.show)
+        print(self.showProbe)
         view = self.image.getView()
-        if self.show:
+        if self.showProbe:
             view.removeItem(self.plItem)
-            self.show = False
+            self.showProbe = False
         else:
             view.addItem(self.plItem)
-            self.show = True
+            self.showProbe = True
+    
+    # warps the selected anchor point
+    def warpAnchorPoint(self, point):
+        if hasattr(self, 'oldChannel') and self.oldChannel != self.channel:
+            if len(self.anchorPos) > 0:
+                #text = pg.TextItem('%d' %(self.oldChannel), color='green')
+                #text.setPos(self.anchorPos[-1][0], self.anchorPos[-1][1])
+                text = pg.ScatterPlotItem(pos=[[self.anchorPos[-1][0], self.anchorPos[-1][1]]], pen=QtGui.QPen(QColor('green')), brush=QtGui.QBrush(QColor('green')), size=5)
 
-    # helper function to display the sliced volume that the probe goes through
-    def getColorVolume(self, rgb_levels=DEFAULT_COLOR_VALUES):
-        level_adjusted_arrays = []
-        for colori, int_level in zip(['red', 'green', 'blue'], rgb_levels):
-            colarray = np.clip(self.int_arrays[colori], a_min=int_level[0], a_max=int_level[1]) - int_level[0]
-            colarray = (colarray * 255. / (int_level[1] - int_level[0])).astype('uint8')
-            level_adjusted_arrays.append(colarray)
-        return np.stack(level_adjusted_arrays, axis=-1)
+                self.anchorText.append(text)
+                self.oldChannel = self.channel
+
+        # get 3d point in 25 resolution
+        ap = int(np.round(point[0] / 2.5))
+        dv = int(np.round((point[1]) / 2.5)) # offset for scaling and taking into account image generation 
+        ml = int(np.round(point[2] / 2.5))
+
+        df = pd.DataFrame({'AP': [ap], 'DV': [dv], 'ML': [ml]})
+        df_result = warp_channels(df, self.field, self.reference, self.probeDropDown.currentText()) # warp anchor
+
+        # display ccf slice
+        plane = sitk.GetArrayFromImage(self.reference).T[df_result.AP.values[0], :, :]
+        rotate = np.rot90(plane)
+        flip = np.flipud(rotate)
+        self.imageRefine.setImage(flip, levels=(0, 255), autoRange=False)
+
+        view_ccf = self.imageRefine.getView()
+
+        for item in self.anchorText:
+            view_ccf.addItem(item)
+
+        if len(self.anchorItems) > 1:
+            view_ccf.removeItem(self.anchorItems.pop(-1))
+
+        pts = [[df_result.ML.values[0], df_result.DV.values[0]]] # plot anchor on ccf
+
+        if len(self.anchorItems) == 0:
+            anchor_item = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('blue')), brush=QtGui.QBrush(QColor('blue')), size=5)
+        else:
+            anchor_item = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')), size=5)
+
+        view_ccf.addItem(anchor_item)
+        self.anchorItems.append(anchor_item)
+        self.anchorPos.append([df_result.ML.values[0], df_result.DV.values[0]])
+        self.warped = True
+        self.anchorInd = 0
+
+    # warps the anchor point after it is clicked and displays it
+    def clickLine(self, plots, points):
+        y = [p[1] for p in self.plots['unit_density'].channels]
+
+        if hasattr(self, 'y_coord'):
+            self.oldy = self.y_coord
+
+        for item in self.lineItems: # set all colors to yellow
+            item.setPen(QtGui.QPen(QColor('yellow')))
+            item.setBrush(QtGui.QBrush(QColor('yellow')))
+
+        self.clearCCFImage() # clear ccf
+
+        self.y_coord = points[0].pos()[1]
+        if hasattr(self, 'channel') and len(self.anchorPos) > 0:
+            self.oldChannel = self.channel
+        self.channel = y.index(self.y_coord)
+        point_ind = self.pointsAdded.index(self.y_coord) # get anchor that was selected
+        # changes color to show its been selected
+        chosen_item = self.lineItems[point_ind]
+        chosen_item.setPen(QtGui.QPen(QColor('white')))
+        chosen_item.setBrush(QtGui.QBrush(QColor('white')))
+
+    # helper function to update the anchor
+    def updateAnchor(self, anchor, view_ccf):
+        # update image
+        plane = self.volume[anchor.AP.values[0], :, :]
+        rotate = np.rot90(plane)
+        flip = np.flipud(rotate)
+        self.imageRefine.setImage(flip, levels=(0, 255), autoRange=False)
+
+        # add anchor point
+        pts = [[anchor.ML.values[0], anchor.DV.values[0]]]
+        anchor_item = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=5)
+        view_ccf.addItem(anchor_item)
+        self.anchorItems.append(anchor_item)
+        self.anchorPos.append([anchor.ML.values[0], anchor.DV.values[0]])
+
+    # moves to prev anchor
+    def viewPrevAnchor(self):
+        if self.anchorInd > 0:
+            view_ccf = self.imageRefine.getView()
+
+            for item in self.anchorItems: # clear items from anchor
+                view_ccf.removeItem(item)
+
+            self.anchorItems.clear()
+            self.anchorPos.clear()
+
+            y = [p[1] for p in self.channels]
+            self.anchorInd -= 1
+            anchor = self.df_ccf.loc[self.df_ccf['channel'] == y.index(sorted(self.pointsAdded)[self.anchorInd])] # prevs anchor 
+
+            self.updateAnchor(anchor, view_ccf)
+
+    # moves to the next anchor
+    def viewNextAnchor(self):
+        if self.anchorInd < len(self.pointsAdded) - 1:
+            view_ccf = self.imageRefine.getView()
+
+            for item in self.anchorItems: # clear items from anchor
+                view_ccf.removeItem(item)
+
+            self.anchorItems.clear()
+            self.anchorPos.clear()
+
+            y = [p[1] for p in self.channels]
+            self.anchorInd += 1
+            anchor = self.df_ccf.loc[self.df_ccf['channel'] == y.index(sorted(self.pointsAdded)[self.anchorInd])] # next anchor 
+            
+            self.updateAnchor(anchor, view_ccf)
+
+    # warps all the probes
+    def warpAllProbes(self):
+        print('Warping Probes', list(self.alignments.keys()))
+        for probe in self.alignments:
+            coords = self.generateLine(probe)
+            channels = self.alignments[probe][0].copy()
+
+            thread = threading.Thread(target=self.warpChannels, args=[channels, probe, coords])
+            thread.daemon = True # kill thread once the main is stopped
+            thread.start()
+
+        popup = QMessageBox()
+        popup.setText('Warping Started. Check console in 2-3 hrs')
+        popup.exec_()
+
+    # warps a single probe
+    def warpProbe(self):
+        print('Warping', self.probeDropDown.currentText())
+        coords = self.generateLine(self.probeDropDown.currentText())
+        channels = self.alignments[self.probeDropDown.currentText()][0].copy()
+
+        thread = threading.Thread(target=self.warpChannels, args=[channels, self.probeDropDown.currentText(), coords])
+        thread.daemon = True # kill thread once the main is stopped
+        thread.start()
+
+        popup = QMessageBox()
+        popup.setText('Warping Started. Check console in about 5-10 mins')
+        popup.exec_()
+
+    # shows the warping of the channels
+    def viewWarpedChannels(self):
+        probe_name = self.probeDropDown.currentText()
+        self.df_ccf = pd.read_csv(os.path.join(self.storageDirectory, '{}_channels_{}_warped.csv'.format(probe_name.replace(' ', '_'), self.mouseID)))
+        self.channels = self.plots['unit_density'].channels
+        y = [p[1] for p in self.channels]
+        for point in self.pointsAdded: # plot anchors
+            ind = y.index(point)
+            row = self.df_ccf.loc[self.df_ccf['channel'] == ind]
+           
+            plt.scatter(row.ML, row.DV, s=15, c='orange')
+
+        grouped = self.df_ccf.groupby('channel_areas').mean()
+        
+        for index, row in grouped.iterrows(): # plot areas
+            if index != 'N/A':
+                plt.text(row.ML, row.DV, index, color='white')
+
+        # plot color scheme of areas on image
+        prev_area = ''
+        view = self.image.getView()
+        color = 'light blue'
+        areas_seen = set()
+        na = 0
+        for index, row in self.df_ccf.reindex().sort_index(ascending=False).iterrows():
+            area = row.channel_areas
+
+            if not pd.isna(area):
+                if prev_area != area: # if moved to a new area
+                    if color == 'cyan':
+                        color = 'pink'
+                    else:
+                        color = 'cyan'
+
+                item = pg.ScatterPlotItem(pos=[[80, self.channels[index][1]]], pen=QtGui.QPen(QColor(color)), brush=QtGui.QBrush(QColor(color)), size=5)
+                self.ccfPlotItems.append(item)
+                view.addItem(item)
+                na += 1
+                if area not in areas_seen: 
+                    areas_seen.add(area)
+                    text = pg.TextItem(area, color=color)
+                    text.setPos(100, self.channels[index][1])
+                    self.ccfTextItems.append(text)
+                    view.addItem(text)
+                elif area in areas_seen and prev_area != area: # new area but has been seen already
+                    text = pg.TextItem(area, color=color)
+                    text.setPos(100, self.channels[index][1])
+                    self.ccfTextItems.append(text)
+                    view.addItem(text)
+
+                prev_area = area
+            elif pd.isna(area): # N/A area
+                if '%s%d' %('N/A', na) not in areas_seen:
+                    areas_seen.add('%s%d' %('N/A', na))
+                    text = pg.TextItem('N/A')
+                    text.setPos(100, self.channels[index][1])
+                    self.ccfTextItems.append(text)
+                    view.addItem(text)
+
+                item = pg.ScatterPlotItem(pos=[[80, self.channels[index][1]]], pen=QtGui.QPen(QColor('white')), brush=QtGui.QBrush(QColor('white')), size=5)
+                view.addItem(item)
+                self.ccfPlotItems.append(item)
+                prev_area = 'N/A'
+
+        view.removeItem(self.plItem)
+        self.showProbe = False
+        plt.imshow(sitk.GetArrayFromImage(self.reference).T[int(grouped.AP.mean()), :, :])
+        plt.show()
 
     # warps the channels to the ccf
-    def warpChannels(self):
-        self.channelsOriginal = self.unitPlot.channelsOriginal
-        self.channels = self.unitPlot.channels
+    def warpChannels(self, channels, probe_name, coords, view=False):
+        print('Arjun you are doing great!!!')
         values = list(self.acrnm_map.values())
         keys = list(self.acrnm_map.keys())
+       
+        unique = set()
 
-        # build dataframe for warping
-        channel_dict = {'AP': [], 'DV': [], 'ML': [], 'probe_name': []}
+        channel_map = {}
+        out_of_brain = set()
+        for i in range(384):
+            channel_dict = {'AP': [], 'DV': [], 'ML': []} # dataframe for warping
+            channel = channels[i]
+            y_coord = int(np.round(channel[1])) + 85
+            if y_coord in coords:
+                coord = coords[y_coord] # get the 3d coordinate at that point on the probe track
+                ap = int(np.round(coord[0] / 2.5))
+                dv = int(np.round((coord[1]) / 2.5)) # offset for scaling and taking into account image generation 
+                ml = int(np.round((coord[2]) / 2.5))
 
-        for i in range(len(self.channels)):
-            channel = self.channels[i]
-            y_coord = int(np.round(channel[1] + 80))
+                if (ap, dv, ml) not in unique and dv > 0:
+                    unique.add((ap, dv, ml))
 
-            if y_coord in self.coords:
-                coord = self.coords[y_coord] # get the 3d coordinate at that point on the probe track
-                channel_dict['AP'].append(coord[0])
-                channel_dict['DV'].append(coord[1])
-                channel_dict['ML'].append(coord[2])
-                
-
-        probe_name = self.probeDropDown.currentText()
-        channels = list(range(383, -1, -1))
-        probe = [probe_name for i in range(len(channel_dict['AP']))]
-        channel_dict['probe_name'] = probe
-        df_channel = pd.DataFrame(channel_dict)
+                    channel_dict['AP'].append(ap)
+                    channel_dict['DV'].append(dv)
+                    channel_dict['ML'].append(ml)
         
-        # warp using deformation field and reference
-        df_final = warp_channels(df_channel, self.field, self.reference, self.probeDropDown.currentText(), channels)
+                    df_channel = pd.DataFrame(channel_dict)
         
+                    # warp using deformation field and reference
+                    df_final = warp_channels(df_channel, self.field, self.reference, probe_name)
+                    channel_map[(ap, dv, ml)] = (df_final['AP'].values[0], df_final['DV'].values[0], df_final['ML'].values[0])
+                elif dv < 0:
+                    out_of_brain.add((ap, dv, ml))
+
+        ccf = {'AP': [], 'DV': [], 'ML': []} # dictionary for ccf coords
+
+        for i in range(0, 384):
+            channel = channels[i]
+            y_coord = int(np.round(channel[1])) + 85
+
+            if y_coord in coords:
+                coord = coords[y_coord] # get the 3d coordinate at that point on the probe track
+                ap = int(np.round(coord[0] / 2.5))
+                dv = int(np.round((coord[1]) / 2.5)) # offset for scaling and taking into account image generation 
+                ml = int(np.round((coord[2]) / 2.5))
+
+                if dv > 0:
+                    points = channel_map[(ap, dv, ml)] # get corresponding ccf coord
+                    #print(points)
+                    ccf['AP'].append(points[0])
+                    ccf['DV'].append(points[1])
+                    ccf['ML'].append(points[2])
+                else: # out of brain
+                    ccf['AP'].append(-1)
+                    ccf['DV'].append(-1)
+                    ccf['ML'].append(-1)
+
+        df_ccf = pd.DataFrame(ccf)
+        channels_num = list(range(384))
+        probe = [probe_name for i in range(len(ccf['AP']))]
+        df_ccf['probe_name'] = probe
         # get areas from ccf
         channel_areas = []
 
-        for index, row in df_final.iterrows():
-            struct = self.anno[row.AP, row.DV, row.ML]
-            if struct in values:
-                ind = values.index(struct)
-                key = keys[ind]
+        # get brain areas corresponding to coords
+        for index, row in  df_ccf.iterrows():
+            if row.AP > 0:
+                struct = self.anno[row.AP, row.DV, row.ML]
+                if struct in values:
+                    ind = values.index(struct)
+                    key = keys[ind]
 
-                if not key[0].islower():
-                    channel_areas.append(key)
+                    if not key[0].islower():
+                        channel_areas.append(key)
+                    else:
+                        channel_areas.append('N/A')
                 else:
                     channel_areas.append('N/A')
             else:
-                channel_areas.append('N/A')
+                channel_areas.append('out of brain')
 
-        df_final['channel_areas'] = channel_areas
-        df_final.to_csv(os.path.join(self.storageDirectory, '{}_channels_{}_warped.csv'.format(probe_name.replace(' ', '_'), mouse_id)), index=False)
+        df_ccf['channel_areas'] = channel_areas
+        df_ccf['channel'] = channels_num
+        #print(df_channel)
+        
+        df_ccf.to_csv(os.path.join(self.storageDirectory, '{}_channels_{}_warped.csv'.format(probe_name.replace(' ', '_'), self.mouseID)), index=False)
 
-        for index, row in df_final.iterrows():
-            plt.scatter(row.ML, row.DV)
-        # group by the region area and plot average for that region
-        grouped = df_final.groupby('channel_areas').mean()
-        
-        for index, row in grouped.iterrows():
-            if index != 'N/A':
-                plt.text(row.ML, row.DV, index, color='white')
-        
-        plt.imshow(sitk.GetArrayFromImage(self.reference).T[int(grouped.AP.mean()),0 :, :])
-        plt.show()
-        
+        if view:
+            self.viewWarpedChannels()
+
+        print('Finsihed Warping {}.'.format(probe_name))
+        print()
 
     # function called when the drop down for the metric changes
     # updates the plots to get the metrics file for the corresponding probe and day
     def metricChanged(self):
         print('Metric changed')
         probe = self.probeDropDown.currentText()
-        metric = self.metrics.currentText().lower()
+        metric = self.metrics.currentText()
         view = self.image.getView()
 
         probe_let_num = probe[probe.index(' ')+1:]
@@ -836,12 +1217,21 @@ class VolumeAlignment(QWidget):
             view.removeItem(self.plots[self.oldMetric].channelsPlot)
             view.addItem(self.plots[metric].channelsPlot)
 
-        self.oldMetric = metric.lower()
+        self.oldMetric = metric
+
+    def readAnchors(self):
+        for probe in self.probes:
+            if os.path.exists(os.path.join(self.storageDirectory, 'anchors', '{}_anchors.pickle'.format(probe.replace(' ', '_')))):
+                if probe not in self.alignments:
+                    with open(os.path.join(self.storageDirectory, 'anchors', '{}_anchors.pickle'.format(probe.replace(' ', '_'))), 'rb') as f:
+                        anchor = pickle.load(f)
+
+                    self.alignments[probe] = anchor
 
     # displays the region of interest surrounding the probe track
     def displayRegion(self):
         probe = self.probeDropDown.currentText()
-        metric = self.metrics.currentText().lower()
+        metric = self.metrics.currentText()
         self.path = ''
         view = self.image.getView()
 
@@ -871,7 +1261,7 @@ class VolumeAlignment(QWidget):
             self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues, keep_y=True, old_y=self.alignments[probe][1], points_added=self.alignments[probe][-1])
 
             self.prevProbe = probe
-            self.oldMetric = metric.lower()
+            self.oldMetric = metric
         else:
             # get metrics path for this probe and day
             probe_let_num = probe[probe.index(' ')+1:]
@@ -902,7 +1292,7 @@ class VolumeAlignment(QWidget):
                     self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues)
 
                     self.prevProbe = probe
-                    self.oldMetric = metric.lower()
+                    self.oldMetric = metric
                 else:
                     popup = QMessageBox()
                     popup.setText('Couldn\'t find metrics.csv for {}'.format(probe))
@@ -1001,11 +1391,15 @@ class VolumeAlignment(QWidget):
         #other_plot.linearSpacePoints(pointsAdded)
 
     # pefroms alignment on the unit density plot
-    def onClickProbeHelper(self, click_plot, line_point, is_unit=True):
-        channel = click_plot.channels.index([click_plot.channelsPlot.scatterPoint[0], click_plot.channelsPlot.scatterPoint[1]]) # get index of point clicked on in unit density
+    def onClickProbeHelper(self, click_plot, line_point, is_unit=True, channel=-1, scatter_point=None, color='yellow'):
+        if channel == -1:
+            channel = click_plot.channels.index([click_plot.channelsPlot.scatterPoint[0], click_plot.channelsPlot.scatterPoint[1]]) # get index of point clicked on in unit density
+        else:
+            click_plot.channelsPlot.scatterPoint = scatter_point
+
         click_plot.oldChannels.append(click_plot.channels)
         flag = True
-
+        print('Clicked', click_plot.channelsPlot.scatterPoint[1])
         if line_point[1] != click_plot.channelsPlot.scatterPoint[1]:
             if line_point[1] < click_plot.channelsPlot.scatterPoint[1]: # alignment is above currently clicked channel
                 #print('lower')
@@ -1070,14 +1464,20 @@ class VolumeAlignment(QWidget):
         
             pts = [[t, line_point[1]] for t in range(int(click_plot.channelsPlot.scatterPoint[0]), int(line_point[0]))]
             self.anchorPts.append(pts)
-            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
+            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor(color)), brush=QtGui.QBrush(QColor(color)), size=2)
+            text = pg.TextItem(str(channel))
+            text.setPos(80, line_point[1])
+            self.textItems.append(text)
             self.lineItems.append(h_line)
         else: # alignment is same as y coord of the channel clicked on
             pts = [[t, line_point[1]] for t in range(int(click_plot.channelsPlot.scatterPoint[0]), int(line_point[0]))]
             self.anchorPts.append(pts)
             diff = 0
-            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
+            h_line = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor(color)), brush=QtGui.QBrush(QColor(color)), size=2)
             self.lineItems.append(h_line)
+            text = pg.TextItem(str(channel))
+            text.setPos(80, line_point[1])
+            self.textItems.append(text)
 
         # update other plots to match alignment of unit density
         if is_unit:
@@ -1095,8 +1495,9 @@ class VolumeAlignment(QWidget):
         
         view = self.image.getView()
         view.addItem(h_line)
+        view.addItem(text)
         #h_line.setClickable(True)
-        h_line.sigClicked.connect(self.removeLine)
+        h_line.sigClicked.connect(self.clickLine)
 
         anchor = [self.plots['unit_density'].channels, self.plots[self.metrics.currentText().lower()].channels, self.anchorPts.copy(), 
                                               self.pointsAdded.copy()] 
@@ -1122,13 +1523,114 @@ class VolumeAlignment(QWidget):
         self.plots['unit_density'].channelsPlot.clicked = False
         self.plots[self.metrics.currentText().lower()].channelsPlot.clicked = False
     
-    # left arrow key
-    # removes the most recent alignment
+    def refineSpline(self, new_y, dist):
+        y = [p[1] for p in self.channels]
+        current_channel = y.index(sorted(self.pointsAdded)[self.anchorInd])
+
+        if self.anchorInd + 1 < len(self.pointsAdded):
+            next_channel = y.index(sorted(self.pointsAdded)[self.anchorInd + 1]) # next anchor channel
+                        
+            # get distance between old and new
+            orig_dist = self.splineWarped.loc[self.splineWarped['channel'] == next_channel].DV.values[0] - \
+            self.splineWarped.loc[self.splineWarped['channel'] == current_channel].DV.values[0]
+
+            new_dist = self.splineWarped.loc[self.splineWarped['channel'] == next_channel].DV.values[0] - new_y
+
+            scale = (orig_dist - new_dist) # scale
+            scale /= 10
+            print('Scale', scale)
+            start = self.splineWarped.loc[self.splineWarped['channel'] == next_channel].index[0]
+            end = self.splineWarped[self.splineWarped['channel'] == current_channel].index[0]
+            print('Before', self.splineWarped.iloc[start + 1: end + 1])
+            self.splineWarped.loc[start + 1: end + 1, 'DV'] += dist # apply shift
+            #self.splineWarped.loc[start + 1: end + 1, 'DV'] *= (1 + scale) # apply scale
+            result = self.spline(self.splineWarped['DV'].to_numpy())
+            result = np.fliplr(result)
+            self.splineWarped.loc[start + 1: end + 1, 'AP'] = pd.Series(result[0], index=list(range(384)))
+            self.splineWarped.loc[start + 1: end + 1, 'ML'] = pd.Series(result[1], index=list(range(384)))
+            print('After', self.splineWarped.iloc[start + 1: end + 1])
+
+    # helper function for refining the anchor based on arrow key
+    def refineAnchorHelper(self, orientation, dist):
+        view = self.imageRefine.getView()
+        y = [p[1] for p in self.channels]
+
+        if len(self.anchorPos) > 1:
+            popped = self.anchorPos.pop(-1)
+            new_x = popped[0]
+            new_y = popped[1]
+
+            view.removeItem(self.anchorItems.pop(-1))
+
+            if orientation == 'v': # up or down
+                new_y +=  dist
+                self.refineSpline(new_y, dist)
+            else:
+                new_x += dist
+
+            item = pg.ScatterPlotItem(pos=[[new_x, new_y]], pen=QtGui.QPen(QColor('orange')), brush=QtGui.QBrush(QColor('orange')), size=5)
+            view.addItem(item)
+            self.anchorPos.append([new_x, new_y])
+            self.anchorItems.append(item)
+        else:
+            original = self.anchorPos[0]
+            new_x = original[0]
+            new_y = original[1]
+
+            if orientation == 'v': # up or down
+                new_y +=  dist
+                self.refineSpline(new_y, dist)
+            else:
+                new_x += dist
+
+            item = pg.ScatterPlotItem(pos=[[new_x, new_y]], pen=QtGui.QPen(QColor('orange')), brush=QtGui.QBrush(QColor('orange')), size=5)
+            view.addItem(item)
+            self.anchorPos.append([new_x, new_y])
+            self.anchorItems.append(item)
+
+    # helper function when using keyboard to refine anchors
+    # returns the channel that the alignment corresponds to
+    def removeAnchorHelper(self):
+        y = [p[1] for p in self.plots['unit_density'].channels]
+        channel = y.index(self.y_coord)
+        view = self.image.getView()
+        ind = self.pointsAdded.index(self.y_coord)
+        view.removeItem(self.lineItems.pop(ind))
+        view.removeItem(self.textItems.pop(ind))
+        self.pointsAdded.pop(ind)
+        self.anchorPts.pop(ind)
+
+        return channel
+    
+    # warps the selected anchor
+    def warpSelectedAnchor(self):
+        y = [p[1] for p in self.plots['unit_density'].channels]
+        point = self.coords[self.y_coord + 85]
+        self.warpAnchorPoint(point)
+
+    # clears the ccf image
+    def clearCCFImage(self, clear_anchor=False):
+        view_ccf = self.imageRefine.getView()
+        for item in self.anchorItems:
+            view_ccf.removeItem(item)
+
+        for item in self.anchorText:
+            view_ccf.removeItem(item)
+
+        if clear_anchor:
+           self.anchorText.clear()
+
+        self.anchorItems.clear()
+        self.imageRefine.getImageItem().clear()
+
+    # performs action based on what key is hit
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Left:
+        if event.key() == Qt.Key_Left: # delete last anchor done
             popped = self.lineItems.pop(-1) # last alignment done
+            popped_text = self.textItems.pop(-1)
             view = self.image.getView()
             view.removeItem(popped)
+            view.removeItem(popped_text)
             self.anchorPts.pop(-1)
             self.pointsAdded.pop(-1)
             self.plots['unit_density'].linearSpacePoints(self.pointsAdded)
@@ -1138,6 +1640,38 @@ class VolumeAlignment(QWidget):
                                               self.pointsAdded.copy()] 
             self.alignments[self.probeDropDown.currentText()] = anchor
             self.saveAnchor(anchor)
+            self.clearCCFImage()
+        elif event.key() == Qt.Key_Delete: # delete selected anchor
+            if self.y_coord in self.pointsAdded:
+                ind = self.pointsAdded.index(self.y_coord)
+                popped = self.lineItems.pop(ind) # last alignment done
+                popped_text = self.textItems.pop(ind)
+
+                view = self.image.getView()
+                view.removeItem(popped)
+                view.removeItem(popped_text)
+                self.anchorPts.pop(ind)
+                self.pointsAdded.pop(ind)
+                self.plots['unit_density'].linearSpacePoints(self.pointsAdded)
+                self.plots[self.metrics.currentText().lower()].linearSpacePoints(self.pointsAdded)
+
+                anchor = [self.plots['unit_density'].channels, self.plots[self.metrics.currentText().lower()].channels, self.anchorPts.copy(), 
+                                                  self.pointsAdded.copy()] 
+                self.alignments[self.probeDropDown.currentText()] = anchor
+                self.saveAnchor(anchor)
+                self.clearCCFImage()
+        elif event.key() == Qt.Key_Down: # refine anchor down
+            #self.refineAnchorHelper('v', 1)
+            channel = self.removeAnchorHelper()
+            self.onClickProbeHelper(self.plots['unit_density'], [80, self.y_coord + 1], channel=channel, scatter_point=self.plots['unit_density'].channels[channel], 
+                                    color='white')
+            self.y_coord += 1
+        elif event.key() == Qt.Key_Up: # refine anchor up
+            #self.refineAnchorHelper('v', -1)
+            channel = self.removeAnchorHelper()
+            self.onClickProbeHelper(self.plots['unit_density'], [80, self.y_coord - 1], channel=channel, scatter_point=self.plots['unit_density'].channels[channel], 
+                                    color='white')
+            self.y_coord -= 1
 
     # toggles the mask 
     def toggleCCFRegions(self):
@@ -1150,12 +1684,8 @@ class VolumeAlignment(QWidget):
             self.showMaskHelper()
             self.showMask = True
 
-    # displays the region along the probe track
-    # probe: string, the probe to be displayed from the drop down
-    def updateDisplay(self, probe, restore=False):
-        self.showMask = False
-        self.showProbe = True
-        #print('Probe', probe)
+    # generates the line based on the annotated points
+    def generateLine(self, probe):
         x = self.probeAnnotations[self.probeAnnotations.probe_name == probe].ML 
         y = self.probeAnnotations[self.probeAnnotations.probe_name == probe].DV 
         
@@ -1183,8 +1713,37 @@ class VolumeAlignment(QWidget):
         self.linepts = linepts
         self.intensityValues = intensity_values_red
 
+        ap_scale = 1
+        dv_scale = 1/0.94
+        lr_scale = 1
+ 
+        # get vectors in xyz
+        self.dz = (linepts[-1, 0] - linepts[0, 0])
+        self.dy = (linepts[-1, 1] - linepts[0, 1])
+        self.dx = (linepts[-1, 2] - linepts[0, 2])
+        self.vector = np.array([self.dz, self.dy, self.dx])
+            
+        # apply scale
+        self.dzScale = self.dz * ap_scale
+        self.dyScale = self.dy * dv_scale
+        self.dxScale = self.dx * lr_scale
+        self.vectorScale = np.array([self.dzScale, self.dyScale, self.dxScale])
+
+        # get scale factor
+        self.scale = np.linalg.norm(self.vectorScale) / np.linalg.norm(self.vector)
+
         for j in range(linepts.shape[0]):
             self.coords[j] = (linepts[j, 0], linepts[j, 1], linepts[j, 2]) # dictionary to store 3d coord at probe y coord
+
+        return self.coords
+
+    # displays the region along the probe track
+    # probe: string, the probe to be displayed from the drop down
+    def updateDisplay(self, probe, restore=False):
+        self.showMask = False
+        self.showProbe = True
+        #print('Probe', probe)
+        self.generateLine(probe)
 
         p = probe.replace(' ', '_')
         self.volArray = np.array(Image.open(os.path.join(self.workingDirectory, self.mouseID, 'images', '{}_slice.png'.format(p)))) # read slice 
@@ -1222,7 +1781,7 @@ class VolumeAlignment(QWidget):
         self.image.setImage(flip[:, 100:], levels=(0, 255), autoRange=False)
         view = self.image.getView()
 
-        self.points = [[80, t] for t in range(j)]
+        self.points = [[80, t] for t in range(self.linepts.shape[0])]
         self.plItem = pg.ScatterPlotItem(pos=self.points, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')))
         #self.plItem.setClickable(True)
         self.plItem.sigClicked.connect(self.onclickProbe)
@@ -1232,13 +1791,13 @@ class VolumeAlignment(QWidget):
                 view.addItem(self.plots['unit_density'].channelsPlot)
                 view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot)
 
-            view.addItem(self.plItem)
+                view.addItem(self.plItem)
         else: # read from dictionary storing saved plots for the probe
             view.addItem(self.plItem)
             plot_items = self.alignments[probe]
            
-            self.plots['unit_density'].channelsPlot.setData(pos=np.array(plot_items[0], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
             self.plots['unit_density'].channels = plot_items[0].copy()
+            self.plots['unit_density'].channelsPlot.setData(pos=np.array(plot_items[0], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
             self.plots[self.metrics.currentText().lower()].channelsPlot.setData(pos=np.array(plot_items[1], dtype=float), adj=np.array(self.plots['unit_density'].adj, dtype=int))
             self.plots[self.metrics.currentText().lower()].channels = plot_items[1].copy()
 
@@ -1249,12 +1808,20 @@ class VolumeAlignment(QWidget):
             self.anchorPts = plot_items[2].copy() # add line pts
             for pts in self.anchorPts:
                 line_item = pg.ScatterPlotItem(pos=pts, pen=QtGui.QPen(QColor('yellow')), brush=QtGui.QBrush(QColor('yellow')), size=2)
+                line_item.sigClicked.connect(self.clickLine)
                 self.lineItems.append(line_item)
 
             for item in self.lineItems:
                 view.addItem(item)
 
             self.pointsAdded = plot_items[3].copy() # restore alignment
+            y = [t[1] for t in self.plots['unit_density'].channels]
+
+            for point in self.pointsAdded:
+                text = pg.TextItem(str(y.index(point)))
+                text.setPos(80, point)
+                self.textItems.append(text)
+                view.addItem(text)
 
         #view.addItem(self.textItem)
         

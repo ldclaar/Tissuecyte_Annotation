@@ -8,39 +8,34 @@ import pandas as pd
 #from pandas_profiling import ProfileReport
 import os
 from generate_metrics_paths import generate_metrics_path_days
-import pickle 
+
 
 parser = argparse.ArgumentParser()
-#parser.add_argument('-i', '--inputResampledImages', help='Directory to resampeld images', required=True)
-#parser.add_argument('-a', '--annotationFileLocation', help='Path for annotation csv file to be saved in this location', required=True)
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
-#parser.add_argument('--probe', help='Probe to be analyzed', required=True)
 
-if __name__ == '__main__':
-    workingDirectory = '//allen/programs/mindscope/workgroups/np-behavior/tissuecyte'
-    anno = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(workingDirectory, 'field_reference', 'ccf_ano.mhd')))
+if __name__ =='__main__':
+    # command line inputs - mouse id
+    args = parser.parse_args()
+    #input_resampled = pathlib.Path(args.inputResampledImages)
+    #output_dir_csv = pathlib.Path(args.annotationFileLocation)
+    mouse_id = args.mouseID
+    basePath = pathlib.Path('//allen/programs/mindscope/workgroups/np-exp')
+    
+    waveMetricsPath = generate_metrics_path_days(basePath, mouse_id)
+    days = sorted(list(waveMetricsPath.keys()))
+    b2 = waveMetricsPath[days[1]][1]
+    metrics = pd.read_csv(b2)
+    plt.plot(metrics['velocity_above'], list(range(len(metrics['velocity_above']))))
+    plt.show()
 
-    vol = np.zeros((528, 320, 456))
-    with open(os.path.join(workingDirectory, 'field_reference', 'name_map.pkl'), 'rb') as f:
-        name_map = pickle.load(f)
-    with open(os.path.join(workingDirectory, 'field_reference', 'acrnm_map.pkl'), 'rb') as f:
-        acrnm_map = pickle.load(f)
-    with open(os.path.join(workingDirectory, 'field_reference', 'color_map.pkl'), 'rb') as f:
-        colormap = pickle.load(f)
-    df = pd.read_csv('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/608671/Probe_B2_channels_608671_warped.csv')
-    channel_areas = []
-    areas = set()
-    keys = list(acrnm_map.keys())
-    values = list(acrnm_map.values())
-    for index, row in df.iterrows():
-        struct = anno[row['AP'], row['DV'], row['ML']]
+    parent = pathlib.Path(b2).parent.absolute()
 
-        if struct in values:
-            ind = values.index(struct)
-            key = keys[ind]
-            channel_areas.append(key)
-        else:
-            channel_areas.append('N/A')
-     
-    df['channel_area'] = channel_areas
-    print(df.loc[df['channel_area'] != 'N/A'])
+    ksl = pd.read_table(os.path.join(parent, 'cluster_KSLabel.tsv'))
+    print(ksl)
+
+    channel_map = np.load(os.path.join(parent, 'channel_positions.npy'))
+    print(channel_map)
+
+    cluster_amp = pd.read_table(os.path.join(parent, 'cluster_Amplitude.tsv'))
+    print(cluster_amp)
+

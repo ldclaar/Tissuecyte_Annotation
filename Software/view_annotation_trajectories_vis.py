@@ -24,11 +24,14 @@ from sklearn.cluster import KMeans
 import visvis as vis
 from preprocess_generation import generateImages
 from scipy.spatial.transform import Rotation as R
+import pickle
+import paramiko
 #class pandasModel(QAbstractTableModel):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
-
+parser.add_argument('--user', help='Username for hpc', required=True)
+parser.add_argument('--password', help='Password for hpc', required=True)
 
 class AnnotationProbesViewer(QWidget):
     # initialize fields
@@ -177,6 +180,7 @@ class AnnotationProbesViewer(QWidget):
         self.scatterLayout.addWidget(self.main_frame)
         self.scatterLayout.addLayout(self.labelLayout)
         
+        self.probesGenerate = set()
         self.qProbe = []
         self.qTrial = []
 
@@ -189,31 +193,48 @@ class AnnotationProbesViewer(QWidget):
 
     # generate the image slice, mask, and overlay for the probe
     def generateImages(self):
+        """
         pre = generateImages(self.mouseID)
-        probes_generate = []
         probes = sorted(self.annotations['probe_name'].unique())
         counts_original = self.annotations.groupby('probe_name').count().reset_index()
         print(counts_original)
-        counts_new = self.updatedAnnotations.groupby('probe_name').count().reset_index()
-        i = 0
-
+        path = pathlib.Path('{}/images'.format(self.workingDirectory))
+        """
+        probes = sorted(self.annotations['probe_name'].unique())
         path = pathlib.Path('{}/images'.format(self.workingDirectory))
 
         if not os.path.exists(path):
             os.mkdir(path)
-
-            for probe in probes:
-                pre.imageGenerate(probe)
+            all_probes = 'yes'
         else:
-            for probe in probes:
-                c1 = counts_original.loc[counts_original['probe_name'] == probe]
-                c2 = counts_new.loc[counts_new['probe_name'] == probe]
+            with open(os.path.join(self.workingDirectory, 'probes.pickle'), 'wb') as f:
+                pickle.dump(self.probesGenerate, f)
+            all_probes = 'no'
+            """
+            for probe in self.probesGenerate:
+                print(probe)
+                pre.imageGenerate(probe)
+            """
 
-                if c1['AP'][i] != c2['AP'][i]:
-                    print(probe)
-                    pre.imageGenerate(probe)
+        print(all_probes)
+        print('User', user)
+        hostname='hpc-login'
+        username=user
+        password=psswd
 
-                i += 1
+        #cmd_allocation = 'srun -c 1 --mem=1mb -p celltypes --pty bash; pwd'
+        # cd to directory and and call resampling job
+        cmd_execute = 'cd /allen/scratch/aibstemp/arjun.sridhar; pwd; srun -N1 -c50 -t8:00:00 --mem=250gb -p celltypes image_generate.sh {} {}'.format(mouse_id, all_probes) 
+
+        ssh=paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(hostname, username=username, password=password)
+        print('Connection succesful, executing image generation')
+
+        stdin,stdout,stderr=ssh.exec_command(cmd_execute)
+        print('Output', stdout.read().decode())
+        print(stderr.read().decode())
+        ssh.close()
 
     # switches the probe assignment
     def switchProbes(self):
@@ -234,6 +255,8 @@ class AnnotationProbesViewer(QWidget):
 
         self.update_plot(self.updatedAnnotations)
         self.update_plot_2d(self.updatedAnnotations)
+        self.probesGenerate.add(new_probe)
+        self.probesGenerate.add(old_probe)
 
     def saveUpdatedProbes(self):
         if not os.path.exists(os.path.join(self.workingDirectory, 'reassigned')):
@@ -307,6 +330,7 @@ class AnnotationProbesViewer(QWidget):
         self.populateDropDown(self.qProbe, self.qTrial)
         print(probe_name_old)
         self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == probe_name_old, 'probe_name'] = probe_name_new
+        self.probesGenerate.add(probe_name_old)
         self.update_plot(self.updatedAnnotations)
         self.update_plot_2d(self.updatedAnnotations)
 
@@ -344,13 +368,14 @@ class AnnotationProbesViewer(QWidget):
                 break
 
         try:
+            probe = self.updatedAnnotations.iloc[min_x_index]['probe_name']
+            self.probesGenerate.add(probe)
             self.updatedAnnotations.drop([min_x_index], inplace=True)
+            self.updatedAnnotations.reset_index(drop=True, inplace=True)
+            self.update_plot(self.updatedAnnotations) 
+            self.update_plot_2d(self.updatedAnnotations)
         except KeyError:
             pass
-
-        self.updatedAnnotations.reset_index(drop=True, inplace=True)
-        self.update_plot(self.updatedAnnotations) 
-        self.update_plot_2d(self.updatedAnnotations)
         """
         if x_data[min_x_index] < y_data[min_y_index]:
             self.updatedAnnotations.drop([min_x_index], inplace=True)
@@ -521,7 +546,7 @@ class AnnotationProbesViewer(QWidget):
                     legend.append(probe_trial)
                     color_grey = (211, 211, 211)
                     color = tuple(t / 255 for t in color_grey)
-                    vis.plot(linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color_grey, axes=self.ax)
+                    vis.plot(temp - linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color_grey, axes=self.ax)
         
                 self.probe_lines[probe_trial] = linepts
 
@@ -534,6 +559,9 @@ class AnnotationProbesViewer(QWidget):
 if __name__ == '__main__':
     args = parser.parse_args()
     mouse_id = args.mouseID
+    user = args.user
+    psswd = args.password
+
     backend = 'pyqt5'
     app = vis.use(backend)
 

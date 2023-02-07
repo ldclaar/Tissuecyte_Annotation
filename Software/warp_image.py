@@ -65,22 +65,29 @@ def warp_volume(im, annotations, field, reference, probe, volume_dir, all_points
     df_probe.to_csv(os.path.join(volume_dir, '{}_annotations_{}_warped.csv'.format(probe_file_name, mouse_id)))
 
 # warps the channels after the alignment
-def warp_channels(annotations, field, reference, probe, channels):
+def warp_channels(annotations, field, reference, probe):
     final_dict = {'AP': [], 'DV': [], 'ML': [], 'probe_name': []}
     arr = np.zeros((528, 320, 456))
 
     for idx, row in annotations.iterrows():
+        """
         ap = int(np.round(abs(row.AP) / 2.5)) # affine aligned 25 micron space now
         dv = int(np.round(abs(row.DV) / 2.5)) # affine aligned 25 micron space now
         ml = int(np.round(abs(row.ML) / 2.5)) # affine aligned 25 micron space now
+        """
+        ap = row.AP
+        dv = row.DV
+        ml = row.ML
+
+        print('Point to warp', ap, dv, ml)
 
         if ap < arr.shape[0] and dv < arr.shape[1] and ml < arr.shape[2]:
             arr[ap, dv, ml] = 1
 
-    
+    """
     min_ind = int(np.round(annotations['AP'].min() / 2.5))
     max_ind = int(np.round(annotations['AP'].max() / 2.5))
-    """
+    
     if min_ind == max_ind: # probes on same slice
         im = sitk.GetImageFromArray(arr[min_ind:min_ind+1, :, :].T)
     else: # probes across multiple slices
@@ -95,6 +102,7 @@ def warp_channels(annotations, field, reference, probe, channels):
     nonzero_points = np.argwhere(result_arr > 0)
 
     cluster_annotations(len(annotations.index), nonzero_points, final_dict, None)
+    arr[arr > 0] = 0
 
     probe_name = [probe for i in range(len(final_dict['AP']))]
     final_dict['probe_name'] = probe_name
@@ -102,7 +110,7 @@ def warp_channels(annotations, field, reference, probe, channels):
     df_final = pd.DataFrame(final_dict)
     df_final.sort_values(['DV'], inplace=True)
     df_final.reset_index()
-    df_final['channel'] = channels
+    #df_final['channel'] = channels
     #df_final.to_csv(os.path.join(output_dir, '{}_channels_{}_warped.csv'.format(probe.replace(' ', '_'), mouse_id)), index=False)
     return df_final
 
