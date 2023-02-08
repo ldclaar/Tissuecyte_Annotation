@@ -1,4 +1,6 @@
-from concurrent.futures.thread import _worker
+### performs reassignment of probes if needed, and allows for stray points to be deleted
+### generates the image slice, mask, and area labels for each probe in a given mouse id
+
 from itertools import count
 import pandas as pd
 import numpy as np
@@ -26,6 +28,7 @@ from preprocess_generation import generateImages
 from scipy.spatial.transform import Rotation as R
 import pickle
 import paramiko
+
 #class pandasModel(QAbstractTableModel):
 
 parser = argparse.ArgumentParser()
@@ -65,9 +68,10 @@ class AnnotationProbesViewer(QWidget):
                     'F1': '(144, 238, 144)', 'F2': '(0, 128, 0)', 'F3': '(128, 128, 0)', 'F4': '(107, 142, 35)'}
 
         self.probe_lines = {}
+        self.main_frame = QWidget()
         # Make figure using "self" as a parent
-        Figure = app.GetFigureClass()
-        self.fig = Figure(self)
+        self.Figure = app.GetFigureClass()
+        self.fig = self.Figure(self)
         print(type(self.fig._widget))
         #self.fig.bgcolor = 'k'
         #self.panel = QWidget(self)
@@ -389,9 +393,11 @@ class AnnotationProbesViewer(QWidget):
             self.update_plot_2d(self.updatedAnnotations)
         """
       
+    # explicity close visvis widget
+    def closeEvent(self, event):
+        self.fig._widget.close()
+
     def create_main_frame(self):
-        self.main_frame = QWidget()
-        
         # Create the mpl Figure and FigCanvas objects. 
         # 5x4 inches, 100 dots-per-inch
         

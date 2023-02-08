@@ -1,3 +1,5 @@
+### Performs alignment of channels to areas that the probe goes through for a given mouse id
+
 #from this import d
 from tkinter import N
 import pandas as pd
@@ -28,12 +30,6 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 import pathlib
-import json
-import shutil
-from zipfile import ZipFile
-import glob
-import multiprocessing as mp
-from joblib import Parallel, delayed
 import threading
 
 parser = argparse.ArgumentParser()
@@ -197,38 +193,6 @@ class PlotDisplayItem():
         else:
             self.processMetrics()
             self.generateMetricChannels(measurement, scale_value=1/100, shift_value=250)
-        """
-        elif self.measurement == 'spread':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=0, shift_value=300)
-        elif self.measurement == 'firing_rate':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/2, shift_value=250)
-        elif self.measurement == 'd_prime':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=0, shift_value=250)
-        elif self.measurement == 'cumulative_drift':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=0, shift_value=250)
-        elif self.measurement == 'velocity_above':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=250)
-        elif self.measurement == 'velocity_below':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=250)
-        elif self.measurement == 'amplitude':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=5, shift_value=300)
-        elif self.measurement == 'isi_viol':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=0, shift_value=250)
-        elif self.measurement == 'nn_hit_rate':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/5, shift_value=250)
-        elif self.measurement == 'presence_ratio':
-            self.processMetrics()
-            self.generateMetricChannels(measurement, scale_value=1/15, shift_value=250)
-        """
 
     # helper function to generate the metric channels
     # metric: string
@@ -243,17 +207,8 @@ class PlotDisplayItem():
             values = (2 * (values - values.min()) / (values.max() - values.min())) - 1
         else:
             values = (values - values.min()) / (values.max() - values.min())
-        """
-        if 'velocity' in metric:
-            values = values / scale_value
-            #values = values / values.abs().max()
-            values = values.to_numpy().tolist()
-            conv = np.ones(1)
-        else:
-            conv = np.ones(10)
-        """
+
         conv = np.ones(10)
-        #peak_values = [int(p) for p in peak_values]
         self.channelsOriginal = []
 
         for i in range(384):
@@ -519,30 +474,6 @@ class VolumeAlignment(QWidget):
         self.label.setFocusPolicy(QtCore.Qt.NoFocus)
         self.label.setStyleSheet('border: 1px solid black;')
 
-        #self.loadCCFVolume()
-        """
-        # metrics list and plots to show
-        self.metricsList = ['Spread', 'Amplitude', 'Isi_Viol', 'NN_Hit_Rate', 'Firing_Rate', 'Presence_Ratio', 'Velocity_Above', 'Velocity_Below']
-        self.label = QLabel('Channel Clicked')
-        self.label.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.label.setStyleSheet('border: 1px solid black;')
-
-        self.unitPlot = PlotDisplayItem('unit_density', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList, label=self.label)
-        self.spreadPlot = PlotDisplayItem('spread', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        self.isiPlot = PlotDisplayItem('isi_viol', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        self.firePlot = PlotDisplayItem('firing_rate', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        self.velocityAbovePlot = PlotDisplayItem('velocity_above', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        self.velocityBelowPlot = PlotDisplayItem('velocity_below', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        self.ampPlot = PlotDisplayItem('amplitude', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        self.hitRatePlot = PlotDisplayItem('nn_hit_rate', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        self.presPlot = PlotDisplayItem('presence_ratio', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        #self.repolarPlot = PlotDisplayItem('repolarization_slope', self.waveform, self.metrics, self.volumeImage, self.probeAnnotations, self.mouseID)
-        #self.dPrimePlot = PlotDisplayItem('d_prime', self.waveform, self.metrics, self.volumeImage, self.probeAnnotations, self.mouseID)
-        #self.cumDriftPlot = PlotDisplayItem('cumulative_drift', self.waveform, self.metrics, self.probeAnnotations, self.mouseID, self.metricsList)
-        self.plots = {'unit_density': self.unitPlot, 'spread': self.spreadPlot, 'velocity_above': self.velocityAbovePlot, 'firing_rate': self.firePlot,
-                      'velocity_below': self.velocityBelowPlot, 'amplitude': self.ampPlot, 'isi_viol': self.isiPlot, 'nn_hit_rate': self.hitRatePlot,
-                      'presence_ratio': self.presPlot}
-        """
         self.plots = {}
         self.waveform_metrics.drop(columns=['Unnamed: 0', 'cluster_id', 'epoch_name_quality_metrics', 'epoch_name_waveform_metrics', 'quality'], inplace=True)
         print(self.waveform_metrics.columns)
