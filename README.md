@@ -99,9 +99,9 @@ The app has the following components:
   * Toggle Mask will show/hide the CCF mask
   * To change a metric, choose from the drop down
   * To view a different probe, select from the probe drop down
-  * Warp seleted anchor: Warps the currently selected anchor (white line) and displays the ccf point in the last column. Start from the top most anchor, click on the yellow line (it should turn white) and hit the button to see the ccf point. To adjust anchor, use arrow keys and then check again if needed. Repeat this for the rest of the anchors.
+  * Warp seleted anchor: Warps the currently selected anchor (white line) and displays the ccf point in the last column. Start from the top most anchor, click on the yellow line (it should turn white) and hit the button to see the ccf point. To adjust anchor, use up/down arrow keys and then check again if needed. Repeat this for the rest of the anchors.
   * The initial anchor point will be displayed as a blue point, then if an adjustment is made, the new point will be shown in red. The previous anchors above will be shown in green as reference
-  * Warp selected probe: Warps the channels for the probe currently displayed. Check the console terminal to see when warping has finished
+  * Warp selected probe: Warps the channels for the probe currently displayed. Output CSV is stored in the following location `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_channels_mouseID_warped.csv`. Check the console terminal to see when warping has finished
   * Warp all probes to CCF: Warps channels to CCF for all probes that have alignments. Output CSV is stored in the following location `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_channels_mouseID_warped.csv`. Check the console terminal to see when warping has finished
   * View Warped Channels for Probe: View the channel areas. This displays two things: the channel areas displayed back on the image and a separate plot of a CCF slice that the probe goes through with the channel areas. Make sure to close the separate plot before moving to another probe
   * Tip: Start Alignment at the top of the plot and then work in a top-down manner
