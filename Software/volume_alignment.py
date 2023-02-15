@@ -968,8 +968,8 @@ class VolumeAlignment(QWidget):
     def viewWarpedChannels(self):
         probe_name = self.probeDropDown.currentText()
         self.df_ccf = pd.read_csv(os.path.join(self.storageDirectory, '{}_channels_{}_warped.csv'.format(probe_name.replace(' ', '_'), self.mouseID)))
-        self.channels = self.plots['unit_density'].channels
-        y = [p[1] for p in self.channels]
+        #self.channels = self.plots['unit_density'].channels
+        y = [p[1] for p in self.plots['unit_density'].channels]
         for point in self.pointsAdded: # plot anchors
             ind = y.index(point)
             row = self.df_ccf.loc[self.df_ccf['channel'] == ind]
@@ -998,19 +998,19 @@ class VolumeAlignment(QWidget):
                     else:
                         color = 'cyan'
 
-                item = pg.ScatterPlotItem(pos=[[80, self.channels[index][1]]], pen=QtGui.QPen(QColor(color)), brush=QtGui.QBrush(QColor(color)), size=5)
+                item = pg.ScatterPlotItem(pos=[[80, self.plots['unit_density'].channels[index][1]]], pen=QtGui.QPen(QColor(color)), brush=QtGui.QBrush(QColor(color)), size=5)
                 self.ccfPlotItems.append(item)
                 view.addItem(item)
                 na += 1
                 if area not in areas_seen: 
                     areas_seen.add(area)
                     text = pg.TextItem(area, color=color)
-                    text.setPos(100, self.channels[index][1])
+                    text.setPos(100, self.plots['unit_density'].channels[index][1])
                     self.ccfTextItems.append(text)
                     view.addItem(text)
                 elif area in areas_seen and prev_area != area: # new area but has been seen already
                     text = pg.TextItem(area, color=color)
-                    text.setPos(100, self.channels[index][1])
+                    text.setPos(100, self.plots['unit_density'].channels[index][1])
                     self.ccfTextItems.append(text)
                     view.addItem(text)
 
@@ -1019,11 +1019,11 @@ class VolumeAlignment(QWidget):
                 if '%s%d' %('N/A', na) not in areas_seen:
                     areas_seen.add('%s%d' %('N/A', na))
                     text = pg.TextItem('N/A')
-                    text.setPos(100, self.channels[index][1])
+                    text.setPos(100, self.plots['unit_density'].channels[index][1])
                     self.ccfTextItems.append(text)
                     view.addItem(text)
 
-                item = pg.ScatterPlotItem(pos=[[80, self.channels[index][1]]], pen=QtGui.QPen(QColor('white')), brush=QtGui.QBrush(QColor('white')), size=5)
+                item = pg.ScatterPlotItem(pos=[[80, self.plots['unit_density'].channels[index][1]]], pen=QtGui.QPen(QColor('white')), brush=QtGui.QBrush(QColor('white')), size=5)
                 view.addItem(item)
                 self.ccfPlotItems.append(item)
                 prev_area = 'N/A'
