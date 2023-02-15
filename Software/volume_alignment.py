@@ -1,7 +1,7 @@
 ### Performs alignment of channels to areas that the probe goes through for a given mouse id
 
 #from this import d
-from tkinter import N
+from tkinter import ANCHOR, N
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +22,7 @@ import sys
 from get_tissuecyte_info import get_tc_info
 from warp_image import warp_channels
 import xmltodict
-from generate_metrics_paths import generate_metrics_path_days
+from generate_metrics_paths import generate_metrics_path_days, generate_templeton_metric_path_days
 import visvis as vis
 from warp_image import warp_execute, cluster_annotations
 import pickle
@@ -34,6 +34,7 @@ import threading
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
+parser.add_argument('-t', '--templeton', help='Templeton experiment', required=False, default = "")
 
 SCALING_FACTOR = 1.5
 DEFAULT_COLOR_VALUES = [[0, 256], [0, 256], [0, 1000]]
@@ -160,16 +161,16 @@ class PlotDisplayItem():
     
     # Updates the metrics with the given path to the metrics csv
     # path: string, the path to the csv
-    def updateMetrics(self, path):
+    def updateMetrics(self, path, templeton=False):
         self.waveform_metrics = pd.read_csv(path)
         print('Metrics Path', path)
-        self.generateMetrics(self.measurement)
+        self.generateMetrics(self.measurement, templeton=templeton)
 
     # generates the metrics based on the measurement passed in
     # measurement: string, the metric
-    def generateMetrics(self, measurement):
+    def generateMetrics(self, measurement, templeton=False):
         if self.measurement == 'unit_density':
-            self.processMetrics()
+            self.processMetrics(templeton=templeton)
             self.frequencyCounts = self.waveform_metrics['peak_channel'].value_counts().sort_index().reset_index().to_numpy()
             #x = np.linspace(-10, 100, num=384)
             self.channelsRecorded = self.frequencyCounts[:, 0].tolist()
@@ -191,7 +192,7 @@ class PlotDisplayItem():
             smoothed = smoothed / np.sum(conv)
             self.channelsOriginal = [[smoothed[i] - 100, self.channelsOriginal[i][1]] for i in range(384)]
         else:
-            self.processMetrics()
+            self.processMetrics(templeton=templeton)
             self.generateMetricChannels(measurement, scale_value=1/100, shift_value=250)
 
     # helper function to generate the metric channels
@@ -237,13 +238,15 @@ class PlotDisplayItem():
             else:
                 self.channelsOriginal[i] = [(smoothed[i]) - shift_value, self.channelsOriginal[i][1]]
         
-    def processMetrics(self):
-        self.waveform_metrics = self.waveform_metrics.drop(columns=['epoch_name_quality_metrics', 'epoch_name_waveform_metrics', 'quality'])
+    def processMetrics(self, templeton=False):
+        if not templeton:
+            self.waveform_metrics = self.waveform_metrics.drop(columns=['epoch_name_quality_metrics', 'epoch_name_waveform_metrics', 'quality'])
+        else:
+            self.waveform_metrics = self.waveform_metrics.drop(columns=['cluster_id', 'epoch_name'])
         #self.wnorm = (2 * (self.waveform_metrics - self.waveform_metrics.min()) / (self.waveform_metrics.max() - self.waveform_metrics.min())) - 1
 
         #self.wnorm['peak_channel'] = self.waveform_metrics['peak_channel']
         self.averageMetricsChannels = (self.waveform_metrics.groupby('peak_channel').mean().reset_index())
-
 
         #print(self.averageMetricsChannels)
         #self.averageMetricsChannels = (self.averageMetricsChannels - self.averageMetricsChannels.mean()) / self.averageMetricsChannels.std()
@@ -379,19 +382,29 @@ class PlotDisplayItem():
 
 # class to do the alignment between channels and regions
 class VolumeAlignment(QWidget):
-    def __init__(self, mouse_id):
+    def __init__(self, mouse_id, templeton=False):
         super().__init__()
         self.mouseID = mouse_id
         self.title = 'Volume Alignment for Mouse {}'.format(self.mouseID)
         self.probe = 'ProbeA'
+        self.templeton = templeton
         #self.waveform = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.{}-AP/waveform_metrics.csv'.format(self.probe)))
         #self.metrics = pd.read_csv(pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/PilotEphys/Task 2 pilot/2022-08-15_11-22-28_626791/Record Node 108/experiment1/recording1/continuous/Neuropix-PXI-102.{}-AP/metrics_test.csv'.format(self.probe)))
         
         self.basePath = pathlib.Path('//allen/programs/mindscope/workgroups/np-exp')
-        self.waveMetricsPath = generate_metrics_path_days(self.basePath, self.mouseID)
-        self.days = sorted(list(self.waveMetricsPath.keys()))
-        self.waveform_metrics = pd.read_csv(os.path.join(self.basePath, '1178173272_608671_20220518/1178173272_608671_20220518_probeB_sorted/continuous/Neuropix-PXI-100.0', 
-                                                         'metrics.csv'))
+        self.templeBasePath = pathlib.Path('//allen/programs/mindscope/workgroups/templeton/TTOC/pilot recordings')
+
+        if not templeton:
+            self.waveMetricsPath = generate_metrics_path_days(self.basePath, self.mouseID)
+            self.days = sorted(list(self.waveMetricsPath.keys()))
+            self.waveform_metrics = pd.read_csv(os.path.join(self.basePath, '1178173272_608671_20220518/1178173272_608671_20220518_probeB_sorted/continuous/Neuropix-PXI-100.0', 
+                                                             'metrics.csv'))
+        else:
+            self.waveMetricsPath = generate_templeton_metric_path_days(self.mouseID)
+            self.days = sorted(list(self.waveMetricsPath.keys()))
+            self.waveform_metrics = pd.read_csv(os.path.join(self.templeBasePath,
+                                                            '2022-07-26_14-09-36_620263/Record Node 101/experiment1/recording1/continuous/Neuropix-PXI-100.ProbeB-AP', 
+                                                             'waveform_metrics.csv'))
 
         self.initUI()
         self.displayRegion()
@@ -475,8 +488,13 @@ class VolumeAlignment(QWidget):
         self.label.setStyleSheet('border: 1px solid black;')
 
         self.plots = {}
-        self.waveform_metrics.drop(columns=['Unnamed: 0', 'cluster_id', 'epoch_name_quality_metrics', 'epoch_name_waveform_metrics', 'quality'], inplace=True)
-        print(self.waveform_metrics.columns)
+
+        if self.templeton:
+            print(self.waveform_metrics.columns)
+            self.waveform_metrics.drop(columns=(['Unnamed: 0', 'cluster_id', 'epoch_name']), inplace=True)
+        else:
+            self.waveform_metrics.drop(columns=['Unnamed: 0', 'cluster_id', 'epoch_name_quality_metrics', 'epoch_name_waveform_metrics', 'quality'], inplace=True)
+
         for column in self.waveform_metrics.columns:
             if column == 'peak_channel':
                 self.plots['unit_density'] = PlotDisplayItem('unit_density', self.waveform_metrics, self.probeAnnotations, self.mouseID, self.metricsList, label=self.label)
@@ -810,15 +828,6 @@ class VolumeAlignment(QWidget):
     
     # warps the selected anchor point
     def warpAnchorPoint(self, point):
-        if hasattr(self, 'oldChannel') and self.oldChannel != self.channel:
-            if len(self.anchorPos) > 0:
-                #text = pg.TextItem('%d' %(self.oldChannel), color='green')
-                #text.setPos(self.anchorPos[-1][0], self.anchorPos[-1][1])
-                text = pg.ScatterPlotItem(pos=[[self.anchorPos[-1][0], self.anchorPos[-1][1]]], pen=QtGui.QPen(QColor('green')), brush=QtGui.QBrush(QColor('green')), size=5)
-
-                self.anchorText.append(text)
-                self.oldChannel = self.channel
-
         # get 3d point in 25 resolution
         ap = int(np.round(point[0] / 2.5))
         dv = int(np.round((point[1]) / 2.5)) # offset for scaling and taking into account image generation 
@@ -835,9 +844,8 @@ class VolumeAlignment(QWidget):
 
         view_ccf = self.imageRefine.getView()
 
-        for item in self.anchorText:
-            view_ccf.addItem(item)
-
+        if hasattr(self, 'lastAnchor'):
+            view_ccf.addItem(self.lastAnchor)
         if len(self.anchorItems) > 1:
             view_ccf.removeItem(self.anchorItems.pop(-1))
 
@@ -851,6 +859,7 @@ class VolumeAlignment(QWidget):
         view_ccf.addItem(anchor_item)
         self.anchorItems.append(anchor_item)
         self.anchorPos.append([df_result.ML.values[0], df_result.DV.values[0]])
+        
         self.warped = True
         self.anchorInd = 0
 
@@ -868,7 +877,7 @@ class VolumeAlignment(QWidget):
         self.clearCCFImage() # clear ccf
 
         self.y_coord = points[0].pos()[1]
-        if hasattr(self, 'channel') and len(self.anchorPos) > 0:
+        if hasattr(self, 'channel'):
             self.oldChannel = self.channel
         self.channel = y.index(self.y_coord)
         point_ind = self.pointsAdded.index(self.y_coord) # get anchor that was selected
@@ -1136,9 +1145,12 @@ class VolumeAlignment(QWidget):
             if 'probe' + probe_let_num[0] in p:
                 self.path = p
                 break
+            elif self.templeton and 'Probe' + probe_let_num[0] in p:
+                self.path = p
+                break
 
         if self.path != '':
-            self.plots[metric].updateMetrics(self.path)
+            self.plots[metric].updateMetrics(self.path, self.templeton)
         #self.plots[metric].generateMetrics(metric.lower())
 
         if hasattr(self, 'linepts'):
@@ -1183,10 +1195,13 @@ class VolumeAlignment(QWidget):
                 if 'probe' + probe_let_num[0] in p:
                     self.path = p
                     break
+                elif self.templeton and 'Probe' + probe_let_num[0] in p:
+                    self.path = p
+                    break
 
-            self.plots['unit_density'].updateMetrics(self.path)
+            self.plots['unit_density'].updateMetrics(self.path, self.templeton)
             #self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues) # update display since no existing alignment has been done so far
-            self.plots[metric].updateMetrics(self.path)
+            self.plots[metric].updateMetrics(self.path, self.templeton)
             self.resetPlot()
             self.updateDisplay(probe, restore=True)
             self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues, keep_y=True, old_y=self.alignments[probe][1], points_added=self.alignments[probe][-1])
@@ -1203,6 +1218,9 @@ class VolumeAlignment(QWidget):
                 if 'probe' + probe_let_num[0] in p:
                     self.path = p
                     break
+                elif self.templeton and 'Probe' + probe_let_num[0] in p:
+                    self.path = p
+                    break
 
             if self.prevProbe == '' or self.prevProbe != probe: # new alignment
                 if self.prevProbe != '' and self.prevProbe != probe:
@@ -1216,10 +1234,10 @@ class VolumeAlignment(QWidget):
                     self.updateDisplay(probe)
 
                 if self.path != '':
-                    self.plots['unit_density'].updateMetrics(self.path)
+                    self.plots['unit_density'].updateMetrics(self.path, self.templeton)
                     self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues) # update display since no existing alignment has been done so far
 
-                    self.plots[metric].updateMetrics(self.path)
+                    self.plots[metric].updateMetrics(self.path, self.templeton)
                     self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues)
 
                     self.prevProbe = probe
@@ -1764,5 +1782,8 @@ if __name__ == '__main__':
     mouse_id = args.mouseID
 
     app = QApplication(sys.argv)
-    v = VolumeAlignment(mouse_id)
+    if args.templeton:
+        v = VolumeAlignment(mouse_id, templeton=True)
+    else:
+        v = VolumeAlignment(mouse_id)
     sys.exit(app.exec_())

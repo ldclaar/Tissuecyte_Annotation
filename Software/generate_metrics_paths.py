@@ -19,6 +19,31 @@ def get_metrics_directory(base_path,  mouse_id):
     
     return probe_directories
 
+def generate_templeton_metric_path_days(mouse_id):
+    base_path = pathlib.Path('//allen/programs/mindscope/workgroups/templeton/TTOC/pilot recordings')
+    mouse_dirs = get_metrics_directory(base_path, mouse_id)
+    probe_metrics_dirs = {}
+    metrics_path_days = {}
+
+    for directory in mouse_dirs:
+        date = directory[0:directory.index('_')]
+        probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory, 'Record Node 101', 'experiment1', 'recording1', 'continuous')) 
+                      if os.path.isdir(os.path.join(base_path, directory, 'Record Node 101', 'experiment1', 'recording1', 'continuous'))]
+        probe_metrics_dirs [date] = [os.path.join(base_path, directory, 'Record Node 101', 'experiment1', 'recording1', 'continuous', d) for d in probe_dirs]
+            
+    for date in probe_metrics_dirs:
+        for d in probe_metrics_dirs[date]:
+            files = [os.path.join(d, f) for f in os.listdir(d)]
+            for f in files:
+                if 'waveform_metrics.csv' in f:
+                    waveform_metrics_path = f
+                    if date not in metrics_path_days:
+                        metrics_path_days[date] = [waveform_metrics_path]
+                    else:
+                        metrics_path_days[date].append(waveform_metrics_path)
+
+    return metrics_path_days
+
 # gets the path for the metrics csv
 def generate_metrics_path_days(base_path, mouse_id):
     mouse_dirs = get_metrics_directory(base_path, mouse_id)
@@ -61,4 +86,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     mouse_id = args.mouseID
 
-    generate_metrics_path_days(base_path, output_path, mouse_id)
+    #generate_metrics_path_days(base_path, output_path, mouse_id)
+    generate_templeton_metric_path_days(mouse_id)

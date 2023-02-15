@@ -39,7 +39,7 @@ if __name__ =='__main__':
     model_directory = pathlib.Path('{}/field_reference'.format(workingDirectory))
     reference_file = os.path.join(model_directory, 'average_template_25.nrrd')
     volume = sitk.GetArrayFromImage(sitk.ReadImage(reference_file)).T
-    struct_acrnm = acrnm_map['VISpm2/3']
+    struct_acrnm = acrnm_map['DG-mo']
     anno = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(workingDirectory, 'field_reference', 'ccf_ano.mhd')))
 
     linepts = np.argwhere(anno == struct_acrnm)
