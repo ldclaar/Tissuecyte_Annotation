@@ -101,7 +101,13 @@ def warp_channels(annotations, field, reference, probe):
     result_arr = sitk.GetArrayFromImage(result)
     nonzero_points = np.argwhere(result_arr > 0)
 
-    cluster_annotations(len(annotations.index), nonzero_points, final_dict, None)
+    if len(nonzero_points) > 0:
+        cluster_annotations(len(annotations.index), nonzero_points, final_dict, None)
+    else:
+        final_dict['AP'].append(-1)
+        final_dict['DV'].append(-1)
+        final_dict['ML'].append(-1)
+
     arr[arr > 0] = 0
 
     probe_name = [probe for i in range(len(final_dict['AP']))]
