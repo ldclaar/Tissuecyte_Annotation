@@ -1719,15 +1719,18 @@ class VolumeAlignment(QWidget):
         prev_area = ''
         self.allAreas = {}
 
-        for i in range(self.linepts.shape[0]):
+        for i in range(100, self.linepts.shape[0]):
             if i + 85 in self.ccfAreas: # check if area in dictionary
                 area = self.ccfAreas[i + 85][1]
 
                 if area != prev_area: # new area seen
-                    if color == 'cyan':
-                        color = 'pink'
+                    if area == 'N/A':
+                        color = 'white'
                     else:
-                        color = 'cyan'
+                        if color == 'cyan':
+                            color = 'pink'
+                        else:
+                            color = 'cyan'
 
                     text = pg.TextItem(area, color=color)
                     text.setPos(100, i)
