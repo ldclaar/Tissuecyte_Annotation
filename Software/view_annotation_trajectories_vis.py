@@ -228,7 +228,7 @@ class AnnotationProbesViewer(QWidget):
 
         #cmd_allocation = 'srun -c 1 --mem=1mb -p celltypes --pty bash; pwd'
         # cd to directory and and call resampling job
-        cmd_execute = 'cd /allen/scratch/aibstemp/arjun.sridhar; pwd; srun -N1 -c50 -t8:00:00 --mem=250gb -p celltypes image_generate.sh {} {}'.format(mouse_id, all_probes) 
+        cmd_execute = 'cd /allen/scratch/aibstemp/arjun.sridhar; pwd; srun -N1 -c50 -t10:00:00 --mem=250gb -p braintv image_generate.sh {} {}'.format(mouse_id, all_probes) 
 
         ssh=paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

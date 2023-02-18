@@ -432,12 +432,6 @@ class VolumeAlignment(QWidget):
         self.imageMask.setObjectName('image')
         #self.image.setImage(im8.transpose())
 
-        # image refinement
-        self.imageRefine = pg.image(self.im8)
-        self.imageRefine.ui.histogram.hide()
-        self.imageRefine.ui.roiBtn.hide()
-        self.imageRefine.ui.menuBtn.hide()
-        self.imageRefine.setObjectName('image')
 
         self.pointsAdded = [] # y coords of alignments done
         self.channelCoords = {}
@@ -449,8 +443,10 @@ class VolumeAlignment(QWidget):
         self.textItems = []
         self.ccfTextItems = []
         self.ccfPlotItems = []
+        self.probeItems = []
         self.anchorItems = []
         self.anchorPos = []
+        self.ccfAreaItems = []
         self.anchorText = []
         self.pos = []
         self.myFont = ImageFont.load_default()
@@ -476,6 +472,7 @@ class VolumeAlignment(QWidget):
             self.acrnm_map = pickle.load(f)
         with open(os.path.join(self.workingDirectory, 'field_reference', 'color_map.pkl'), 'rb') as f:
             self.colormap = pickle.load(f)
+
         self.anno = sitk.GetArrayFromImage(sitk.ReadImage(os.path.join(self.workingDirectory, 'field_reference', 'ccf_ano.mhd')))
         
         # read reference image, deformation field, probe annotations
@@ -514,7 +511,6 @@ class VolumeAlignment(QWidget):
 
         self.imageLayout.addWidget(self.image)
         self.imageLayout.addWidget(self.imageMask)
-        self.imageLayout.addWidget(self.imageRefine)
 
         # ui features: probe/metric drop downs, red/green toggle, toggle probe, toggle mask, warp to ccf
         self.probes = self.probeAnnotations['probe_name'].unique()
@@ -606,25 +602,18 @@ class VolumeAlignment(QWidget):
         self.viewWarpedButton = QPushButton('View Warped Channels for Selected Probe')
         self.viewWarpedButton.setFocusPolicy(QtCore.Qt.NoFocus)
         self.viewWarpedButton.clicked.connect(self.viewWarpedChannels)
-
-
-        self.nextAnchor = QPushButton('View next anchor')
-        self.nextAnchor.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.nextAnchor.clicked.connect(self.viewNextAnchor)
-        self.prevAnchor = QPushButton('View prev anchor')
-        self.prevAnchor.clicked.connect(self.viewPrevAnchor)
-        self.prevAnchor.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.approveAnchor = QPushButton('Approve Anchor')
-        self.approveAnchor.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.saveCCFButton = QPushButton('Save channel alignments')
+        self.saveCCFButton.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.saveCCFButton.clicked.connect(self.saveCCFChannels)
 
         self.anchorRefineLayout = QVBoxLayout()
+        self.anchorRefineLayout.addWidget(self.saveCCFButton)
+        """
         self.anchorRefineLayout.addWidget(self.warpAnchorButton)
         self.anchorRefineLayout.addWidget(self.warpButton)
         self.anchorRefineLayout.addWidget(self.warpAllButton)
         self.anchorRefineLayout.addWidget(self.viewWarpedButton)
-        #self.anchorRefineLayout.addWidget(self.nextAnchor)
-        #self.anchorRefineLayout.addWidget(self.prevAnchor)
-        #self.anchorRefineLayout.addWidget(self.approveAnchor)
+        """
 
         self.probeViewLayout = QHBoxLayout()
         self.probeViewLayout.addWidget(self.probeDropDown)
@@ -755,17 +744,6 @@ class VolumeAlignment(QWidget):
             else:
                 self.showMaskHelper()
 
-    # hides/shows the probe trajectory
-    def toggleProbe(self):
-        view = self.image.getView()
-
-        if self.showProbe:
-            view.removeItem(self.plItem)
-            self.showProbe = False
-        else:
-            view.addItem(self.plItem)
-            self.showProbe = True
-
     # calculates the euclidean distance between 2 consecutive points annotated on the probe
     def calcDistance(self):
         sorted_dist = sorted(self.distPoints, key=lambda x: x[1])
@@ -788,7 +766,7 @@ class VolumeAlignment(QWidget):
         self.plots[self.metrics.currentText().lower()].resetPlot()
         self.showProbe = True
         view = self.image.getView()
-        self.clearCCFImage(clear_anchor=True)
+
         for item in self.lineItems:
             view.removeItem(item)
 
@@ -801,8 +779,16 @@ class VolumeAlignment(QWidget):
         for item in self.ccfPlotItems:
             view.removeItem(item)
 
-        if hasattr(self, 'plItem') and self.prevProbe != self.probeDropDown.currentText():
-            view.removeItem(self.plItem)
+        if len(self.probeItems) > 0 and self.prevProbe != self.probeDropDown.currentText():
+            if self.showProbe:
+                for item in self.ccfAreaItems:
+                    view.removeItem(item)
+
+                for item in self.probeItems:
+                    view.removeItem(item)
+
+            self.ccfAreaItems.clear()
+            self.probeItems.clear()
         
         self.distPoints.clear()
         self.anchorPts.clear()
@@ -820,10 +806,20 @@ class VolumeAlignment(QWidget):
         print(self.showProbe)
         view = self.image.getView()
         if self.showProbe:
-            view.removeItem(self.plItem)
+            for item in self.ccfAreaItems:
+                view.removeItem(item)
+
+            for item in self.probeItems:
+                view.removeItem(item)
+
             self.showProbe = False
         else:
-            view.addItem(self.plItem)
+            for item in self.ccfAreaItems:
+                view.addItem(item)
+
+            for item in self.probeItems:
+                view.addItem(item)
+
             self.showProbe = True
     
     # warps the selected anchor point
@@ -873,8 +869,6 @@ class VolumeAlignment(QWidget):
         for item in self.lineItems: # set all colors to yellow
             item.setPen(QtGui.QPen(QColor('yellow')))
             item.setBrush(QtGui.QBrush(QColor('yellow')))
-
-        self.clearCCFImage() # clear ccf
 
         self.y_coord = points[0].pos()[1]
         if hasattr(self, 'channel'):
@@ -1032,6 +1026,40 @@ class VolumeAlignment(QWidget):
         self.showProbe = False
         plt.imshow(sitk.GetArrayFromImage(self.reference).T[int(grouped.AP.mean()), :, :])
         plt.show()
+
+    # closest value helper
+    def closestValue(self, input_list, input_value):
+      arr = np.asarray(input_list)
+      i = (np.abs(arr - input_value)).argmin()
+ 
+      return arr[i]
+
+    # saves the ccf channels
+    def saveCCFChannels(self):
+        probe_name = self.probeDropDown.currentText()
+        y = [p[1] for p in self.plots['unit_density'].channels]
+        dict_final = {'AP': [], 'DV': [], 'ML': [], 'region': [], 'channel': []}
+        for i in range(384):
+            y_coord = int(np.round(y[i])) + 85
+            key = self.closestValue(list(self.ccfAreas.keys()), y_coord)
+
+            ccf_region_coord = self.ccfAreas[key]
+            ap = ccf_region_coord[0][0]
+            dv = ccf_region_coord[0][1]
+            ml = ccf_region_coord[0][2]
+            region = ccf_region_coord[1]
+
+            dict_final['AP'].append(ap)
+            dict_final['DV'].append(dv)
+            dict_final['ML'].append(ml)
+            dict_final['channel'].append(i)
+            dict_final['region'].append(region)
+
+        df = pd.DataFrame(dict_final)
+        df.to_csv(os.path.join(self.storageDirectory, '{}_channels_{}_warped.csv'.format(probe_name.replace(' ', '_'), self.mouseID)), index=False)
+        popup = QMessageBox()
+        popup.setText('Channel regions saved')
+        popup.exec_()
 
     # warps the channels to the ccf
     def warpChannels(self, channels, probe_name, coords, view=False):
@@ -1589,7 +1617,6 @@ class VolumeAlignment(QWidget):
                                               self.pointsAdded.copy()] 
             self.alignments[self.probeDropDown.currentText()] = anchor
             self.saveAnchor(anchor)
-            self.clearCCFImage()
         elif event.key() == Qt.Key_Delete: # delete selected anchor
             if self.y_coord in self.pointsAdded:
                 ind = self.pointsAdded.index(self.y_coord)
@@ -1608,7 +1635,6 @@ class VolumeAlignment(QWidget):
                                                   self.pointsAdded.copy()] 
                 self.alignments[self.probeDropDown.currentText()] = anchor
                 self.saveAnchor(anchor)
-                self.clearCCFImage()
         elif event.key() == Qt.Key_Down: # refine anchor down
             #self.refineAnchorHelper('v', 1)
             channel = self.removeAnchorHelper()
@@ -1686,6 +1712,36 @@ class VolumeAlignment(QWidget):
 
         return self.coords
 
+    # displays the ccf areas for each point on the line trajectory
+    def displayCCFAreas(self):
+        color = 'cyan'
+        view = self.image.getView()
+        prev_area = ''
+        self.allAreas = {}
+
+        for i in range(self.linepts.shape[0]):
+            if i + 85 in self.ccfAreas: # check if area in dictionary
+                area = self.ccfAreas[i + 85][1]
+
+                if area != prev_area: # new area seen
+                    if color == 'cyan':
+                        color = 'pink'
+                    else:
+                        color = 'cyan'
+
+                    text = pg.TextItem(area, color=color)
+                    text.setPos(100, i)
+                    view.addItem(text)
+                    self.ccfAreaItems.append(text)
+
+                    prev_area = area
+
+            item = pg.ScatterPlotItem(pos=[[80, i]], pen=QtGui.QPen(QColor(color)), brush=QtGui.QBrush(QColor(color)), size=5)
+            item.sigClicked.connect(self.onclickProbe)
+            self.probeItems.append(item)
+            view.addItem(item)
+
+
     # displays the region along the probe track
     # probe: string, the probe to be displayed from the drop down
     def updateDisplay(self, probe, restore=False):
@@ -1700,6 +1756,8 @@ class VolumeAlignment(QWidget):
         self.blended = np.array(Image.open(os.path.join(self.workingDirectory, self.mouseID, 'images', '{}_overlay.png'.format(p)))) # read overlay
         with open(os.path.join(self.workingDirectory, self.mouseID, 'images', '{}_labels.pickle'.format(p)), 'rb') as handle:
             self.labels_pos = pickle.load(handle)
+        with open(os.path.join(self.workingDirectory, self.mouseID, 'images', '{}_areas.pickle'.format(p)), 'rb') as handle:
+            self.ccfAreas = pickle.load(handle)
 
         self.int_arrays = {}
         self.int_arrays['red'] = self.volArray[:, :, 0].copy()
@@ -1733,16 +1791,18 @@ class VolumeAlignment(QWidget):
         self.points = [[80, t] for t in range(self.linepts.shape[0])]
         self.plItem = pg.ScatterPlotItem(pos=self.points, pen=QtGui.QPen(QColor('red')), brush=QtGui.QBrush(QColor('red')))
         #self.plItem.setClickable(True)
-        self.plItem.sigClicked.connect(self.onclickProbe)
+        #self.plItem.sigClicked.connect(self.onclickProbe)
+
+        self.displayCCFAreas()
 
         if not restore:
             if self.path != '':
                 view.addItem(self.plots['unit_density'].channelsPlot)
                 view.addItem(self.plots[self.metrics.currentText().lower()].channelsPlot)
 
-                view.addItem(self.plItem)
+                #view.addItem(self.plItem)
         else: # read from dictionary storing saved plots for the probe
-            view.addItem(self.plItem)
+            #view.addItem(self.plItem)
             plot_items = self.alignments[probe]
            
             self.plots['unit_density'].channels = plot_items[0].copy()
