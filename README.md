@@ -81,8 +81,6 @@ The app has the following main components
   * Switch Probes: To switch two probes, select the current probe and day from the corresponding drop down, and then the new probe and day from the corresponding drop down, and then hit the Switch Probes button 
   * Reassign Probes: If a probe needs to be assigned to another one, but you are not sure if it needs to be switched, use this function. For example, if the current probe C1 needs to be reassigned to probe C3, and there is another probe that is C3, using this will change probe C1 to C3, and the original C3 will become the color light grey and have the label origProbe_C3. This allows for reassigning this probe later on, and it provides some history as to what the probe was orignally
   * After reassignments have been done, click the Save Updated Probes button for them to be saved
-  * After all the reassignments are done and have been saved, click the Generate Images button to generate the slice images that will be used in the alignment app. This uses the hpc and can take some time. The images are saved to the following directory `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/images`
-  * Each probe has 4 things pregenerated: A pickle file with labels, a mask image, a slice image, and an overlay image
   
 ### Alignment App
 This app allows for the alignment of the 384 channels to the corresponding regions of interest. Run the command `python volume_alignment.py --mouseID <mouseID>`
