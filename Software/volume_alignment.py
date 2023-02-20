@@ -382,7 +382,7 @@ class PlotDisplayItem():
 
 # class to do the alignment between channels and regions
 class VolumeAlignment(QWidget):
-    def __init__(self, mouse_id, templeton=False):
+    def __init__(self, mouse_id, templeton=False, record_node=None):
         super().__init__()
         self.mouseID = mouse_id
         self.title = 'Volume Alignment for Mouse {}'.format(self.mouseID)
@@ -400,7 +400,7 @@ class VolumeAlignment(QWidget):
             self.waveform_metrics = pd.read_csv(os.path.join(self.basePath, '1178173272_608671_20220518/1178173272_608671_20220518_probeB_sorted/continuous/Neuropix-PXI-100.0', 
                                                              'metrics.csv'))
         else:
-            self.waveMetricsPath = generate_templeton_metric_path_days(self.mouseID)
+            self.waveMetricsPath = generate_templeton_metric_path_days(self.mouseID, record_node)
             self.days = sorted(list(self.waveMetricsPath.keys()))
             self.waveform_metrics = pd.read_csv(os.path.join(self.templeBasePath,
                                                             '2022-07-26_14-09-36_620263/Record Node 101/experiment1/recording1/continuous/Neuropix-PXI-100.ProbeB-AP', 
@@ -1240,40 +1240,49 @@ class VolumeAlignment(QWidget):
             # get metrics path for this probe and day
             probe_let_num = probe[probe.index(' ')+1:]
 
-            key = self.days[int(probe_let_num[1]) - 1]
-            paths = self.waveMetricsPath[key]
-            for p in paths:
-                if 'probe' + probe_let_num[0] in p:
-                    self.path = p
-                    break
-                elif self.templeton and 'Probe' + probe_let_num[0] in p:
-                    self.path = p
-                    break
+            try:
+                key = self.days[int(probe_let_num[1]) - 1]
+                paths = self.waveMetricsPath[key]
+                for p in paths:
+                    if 'probe' + probe_let_num[0] in p:
+                        self.path = p
+                        break
+                    elif self.templeton and 'Probe' + probe_let_num[0] in p:
+                        self.path = p
+                        break
 
-            if self.prevProbe == '' or self.prevProbe != probe: # new alignment
-                if self.prevProbe != '' and self.prevProbe != probe:
-                    if self.path == '':
-                        view.removeItem(self.plots['unit_density'].channelsPlot)
-                        view.removeItem(self.plots[metric].channelsPlot)
+                if self.prevProbe == '' or self.prevProbe != probe: # new alignment
+                    if self.prevProbe != '' and self.prevProbe != probe:
+                        if self.path == '':
+                            view.removeItem(self.plots['unit_density'].channelsPlot)
+                            view.removeItem(self.plots[metric].channelsPlot)
 
-                    self.resetPlot()
-                    self.updateDisplay(probe)
-                else: # initial display when nothing has been done
-                    self.updateDisplay(probe)
+                        self.resetPlot()
+                        self.updateDisplay(probe)
+                    else: # initial display when nothing has been done
+                        self.updateDisplay(probe)
 
-                if self.path != '':
-                    self.plots['unit_density'].updateMetrics(self.path, self.templeton)
-                    self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues) # update display since no existing alignment has been done so far
+                    if self.path != '':
+                        self.plots['unit_density'].updateMetrics(self.path, self.templeton)
+                        self.plots['unit_density'].updateDisplay(probe, self.linepts, self.intensityValues) # update display since no existing alignment has been done so far
 
-                    self.plots[metric].updateMetrics(self.path, self.templeton)
-                    self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues)
+                        self.plots[metric].updateMetrics(self.path, self.templeton)
+                        self.plots[metric].updateDisplay(probe, self.linepts, self.intensityValues)
 
-                    self.prevProbe = probe
-                    self.oldMetric = metric
-                else:
-                    popup = QMessageBox()
-                    popup.setText('Couldn\'t find metrics.csv for {}'.format(probe))
-                    popup.exec_()
+                        self.prevProbe = probe
+                        self.oldMetric = metric
+                    else:
+                        popup = QMessageBox()
+                        popup.setText('Couldn\'t find metrics.csv for {}'.format(probe))
+                        popup.exec_()
+            except IndexError: # metrics file not found
+                view.removeItem(self.plots['unit_density'].channelsPlot)
+                view.removeItem(self.plots[metric].channelsPlot)
+                self.resetPlot()
+                self.updateDisplay(probe)
+                popup = QMessageBox()
+                popup.setText('Couldn\'t find metrics.csv for {}'.format(probe))
+                popup.exec_()
 
     # helper function to remove the alignment line
     def removeLineHelper(self, y_coord, ind):
@@ -1846,7 +1855,7 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     if args.templeton:
-        v = VolumeAlignment(mouse_id, templeton=True)
+        v = VolumeAlignment(mouse_id, templeton=True, record_node=args.templeton)
     else:
         v = VolumeAlignment(mouse_id)
     sys.exit(app.exec_())

@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
 
 # gets the directory where the metrics file is
-def get_metrics_directory(base_path,  mouse_id):
+def get_metrics_directory(base_path: str,  mouse_id: str):
     directories = os.listdir(base_path)
     probe_directories = []
 
@@ -19,7 +19,8 @@ def get_metrics_directory(base_path,  mouse_id):
     
     return probe_directories
 
-def generate_templeton_metric_path_days(mouse_id):
+def generate_templeton_metric_path_days(mouse_id: str, record_node: str):
+    record_node = record_node.replace('_', ' ')
     base_path = pathlib.Path('//allen/programs/mindscope/workgroups/templeton/TTOC/pilot recordings')
     mouse_dirs = get_metrics_directory(base_path, mouse_id)
     probe_metrics_dirs = {}
@@ -27,9 +28,9 @@ def generate_templeton_metric_path_days(mouse_id):
 
     for directory in mouse_dirs:
         date = directory[0:directory.index('_')]
-        probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory, 'Record Node 101', 'experiment1', 'recording1', 'continuous')) 
-                      if os.path.isdir(os.path.join(base_path, directory, 'Record Node 101', 'experiment1', 'recording1', 'continuous'))]
-        probe_metrics_dirs [date] = [os.path.join(base_path, directory, 'Record Node 101', 'experiment1', 'recording1', 'continuous', d) for d in probe_dirs]
+        probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous')) 
+                      if os.path.isdir(os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous'))]
+        probe_metrics_dirs [date] = [os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous', d) for d in probe_dirs]
             
     for date in probe_metrics_dirs:
         for d in probe_metrics_dirs[date]:
