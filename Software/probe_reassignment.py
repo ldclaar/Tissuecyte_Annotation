@@ -323,9 +323,9 @@ class AnnotationProbesViewer(QWidget):
             probe_name_new = 'Probe' + ' ' + self.probeNew.currentText() + self.trialNew.currentText()
 
 
+            #self.probeOld.addItem('orig_Probe')
         if probe_name_new in probes and probe_name_new[probe_name_new.index(' ') + 1:] != self.trialOld.currentText(): # need to add this to drop down, so it can be reassigned later on
             print(self.trialOld.currentText())
-            #self.probeOld.addItem('orig_Probe')
             self.qProbe.append('orig_Probe')
             #self.trialOld.addItem(probe_name_new[probe_name_new.index(' ') + 1:])
             self.qTrial.append(probe_name_new[probe_name_new.index(' ') + 1:])

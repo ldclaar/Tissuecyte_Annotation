@@ -1,9 +1,11 @@
 import glob
+from re import M
 import numpy as np
 import pathlib
 import argparse
 from PyQt5 import QtGui
 from matplotlib import cm
+import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session')
@@ -35,7 +37,7 @@ class qcChecker():
                                ~np.isnan(self.spikeAmps[self.spikeIdx]))[0]
     
     # helper function for firing rate 
-    def bincount2D(x, y, xbin=0, ybin=0, xlim=None, ylim=None, weights=None):
+    def bincount2D(self, x, y, xbin=0, ybin=0, xlim=None, ylim=None, weights=None):
         """
         Computes a 2D histogram by aggregating values in a 2D array.
 
@@ -94,14 +96,23 @@ class qcChecker():
 
         return r, xscale, yscale
 
+    # firing rate, uses bincount helper
     def get_fr(self):
         T_BIN = 0.05
         D_BIN = 5
-        chn_min = np.min(np.r_[self.chn_min, self.spikes['depths'][self.spike_idx][self.kp_idx]])
-        chn_max = np.max(np.r_[self.chn_max, self.spikes['depths'][self.spike_idx][self.kp_idx]])
-        n, times, depths = self.bincount2D(self.spikes['times'][self.spike_idx][self.kp_idx],
-                                          self.spikes['depths'][self.spike_idx][self.kp_idx],
+        chn_min = np.min(np.r_[self.chnMin, self.spikeDepths[self.spikeIdx][self.kpIdx]])
+        chn_max = np.max(np.r_[self.chnMax, self.spikeDepths[self.spikeIdx][self.kpIdx]])
+        n, times, depths = self.bincount2D(self.spikeTimes[self.spikeIdx][self.kpIdx],
+                                          self.spikeDepths[self.spikeIdx][self.kpIdx],
                                           T_BIN, D_BIN, ylim=[chn_min, chn_max])
+
+        img = n.T / T_BIN
+        xscale = (times[-1] - times[0]) / img.shape[0]
+        yscale = (depths[-1] - depths[0]) / img.shape[1]
+
+        n = np.flipud(n)
+        plt.imshow(n, cmap='binary', extent=[0, 6000, 0, 4000], vmin=0, vmax=1)
+        plt.show()
 
     # gets the amplitude
     def get_amp(self):
@@ -109,7 +120,7 @@ class qcChecker():
         amp_range = np.quantile(self.spikeAmps[self.spikeIdx][self.kpIdx], [0, 0.9])
         amp_bins = np.linspace(amp_range[0], amp_range[1], A_BIN)
         colour_bin = np.linspace(0.0, 1.0, A_BIN + 1)
-        colours = ((cm.get_cmap('BuPu')(colour_bin)[np.newaxis, :, :3][0]) * 255).astype(np.int32)
+        colours = ((cm.get_cmap('BuPu')(colour_bin)[np.newaxis, :, :3][0]))
         spikes_colours = np.empty(self.spikeAmps[self.spikeIdx][self.kpIdx].size,
                                       dtype=object)
         spikes_size = np.empty(self.spikeAmps[self.spikeIdx][self.kpIdx].size)
@@ -118,15 +129,19 @@ class qcChecker():
                 idx = np.where((self.spikeAmps[self.spikeIdx][self.kpIdx] >
                                     amp_bins[iA]))[0]
                 # Make saturated spikes a very dark purple
-                spikes_colours[idx] = QtGui.QColor('#400080')
+                spikes_colours[idx] = [(64 / 255, 0 / 255, 128 / 255) for i in range(len(spikes_colours[idx]))]
             else:
                 idx = np.where((self.spikeAmps[self.spikeIdx][self.kpIdx] >
                                     amp_bins[iA]) &
                                    (self.spikeAmps[self.spikeIdx][self.kpIdx] <=
                                     amp_bins[iA + 1]))[0]
-                spikes_colours[idx] = QtGui.QColor(*colours[iA])
+                spikes_colours[idx] = [colours[iA] for i in range(len(spikes_colours[idx]))]
 
             spikes_size[idx] = iA / (A_BIN / 4)
+
+        plt.scatter(self.spikeTimes[self.spikeIdx][self.kpIdx][0:-1:100], self.spikeDepths[self.spikeIdx][self.kpIdx][0:-1:100], s=spikes_size[0:-1:100],
+                    c=spikes_colours[0:-1:100])
+        plt.show()
 
 if __name__ == '__main__':
     args = parser.parse_args()

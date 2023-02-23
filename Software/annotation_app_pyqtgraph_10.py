@@ -817,10 +817,16 @@ class TissuecyteApp10(QWidget):
     # loads data from resampled input directory and csv input if it exists
     def loadData(self):
         self.loadVolume()
-        if os.path.exists(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID))): # use exisitng csv
+
+        if os.path.exists(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID))): # use exisitng csv
+            self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID)), index_col=0)
+            self.reassigned = True
+        elif os.path.exists(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID))): # use exisitng csv
             self.annotations = pd.read_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)), index_col=0)
+            self.reassigned = False
         else: # create new dataframe
             self.annotations = pd.DataFrame(columns = ['AP','ML','DV', 'probe_name'])
+            self.reassigned = False
          
         self.refreshImage(value_draw=True)
 
@@ -859,7 +865,10 @@ class TissuecyteApp10(QWidget):
 
     def saveData(self):
         if self.data_loaded:
-            self.annotations.to_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
+            if self.reassigned:
+                self.annotations.to_csv(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID)))
+            else:
+                self.annotations.to_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
             
 if __name__ == '__main__':
     # command line inputs - mouse id
