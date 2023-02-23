@@ -132,6 +132,7 @@ def warp_points(output_dir, mouse_id, annotations, field, reference, progress):
         probe_file_name = probe.replace(' ', '_')
         print(probe)
         probe_annotations = annotations.loc[annotations['probe_name'] == probe]
+        probe_annotations = probe_annotations[['AP', 'ML', 'DV']]
         #print(probe_annotations)
 
         for annotation in probe_annotations.to_numpy():
