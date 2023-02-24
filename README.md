@@ -82,7 +82,7 @@ The app has the following main components
   * Reassign Probes: If a probe needs to be assigned to another one, but you are not sure if it needs to be switched, use this function. For example, if the current probe C1 needs to be reassigned to probe C3, and there is another probe that is C3, using this will change probe C1 to C3, and the original C3 will become the color light grey and have the label origProbe_C3. This allows for reassigning this probe later on, and it provides some history as to what the probe was orignally
   * After reassignments have been done, click the Save Updated Probes button for them to be saved
   
-### Alignment App
+### Refinement App
 This app allows for the alignment of the 384 channels to the corresponding regions of interest. Run the command `python volume_alignment.py --mouseID <mouseID>`
 
 The probe and the desired metric that will be displayed along with the unit density are shown in the drop downs. The unit density will always be the plot closest to the red probe track.
@@ -90,18 +90,14 @@ The probe and the desired metric that will be displayed along with the unit dens
 The app has the following components:
   * Zoom in/out - use the mouse wheel
   * Volume alignment: Zoom in and select a channel (point) on the unit density plot. Then click on a corresponding region on the probe and a yellow horizontal line should connect from the channel to that point on the probe. The plots will then shift/linearly space depending on the alignment made
+  * To reposition anchor, click on yellow line and it will turn white as it has been selected. Then use the up/down arrow keys to adjust
   * Remove Alignment: Click on a yellow line. This will turn it white as it has been selected. Then hit the delete button to remove it. Note this works best when zooming out
   * Remove Last Alignment: Hit the left arrow key
   * Reset Metric Plot will clear the alignments and reset both plots to the original positions
-  * Toggle Probe will show/hide the red line
+  * Toggle Probe will show/hide the line with the ccf regions
   * Toggle Mask will show/hide the CCF mask
   * To change a metric, choose from the drop down
   * To view a different probe, select from the probe drop down
-  * Warp seleted anchor: Warps the currently selected anchor (white line) and displays the ccf point in the last column. Start from the top most anchor, click on the yellow line (it should turn white) and hit the button to see the ccf point. To adjust anchor, use up/down arrow keys and then check again if needed. Repeat this for the rest of the anchors.
-  * The initial anchor point will be displayed as a blue point, then if an adjustment is made, the new point will be shown in red. The previous anchors above will be shown in green as reference
-  * Warp selected probe: Warps the channels for the probe currently displayed. Output CSV is stored in the following location `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_channels_mouseID_warped.csv`. Check the console terminal to see when warping has finished
-  * Warp all probes to CCF: Warps channels to CCF for all probes that have alignments. Output CSV is stored in the following location `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_channels_mouseID_warped.csv`. Check the console terminal to see when warping has finished
-  * View Warped Channels for Probe: View the channel areas. This displays two things: the channel areas displayed back on the image and a separate plot of a CCF slice that the probe goes through with the channel areas. Make sure to close the separate plot before moving to another probe
-  * Tip: Start Alignment at the top of the plot and then work in a top-down manner
+  * When satisfied with alignments, click the Save channel alignments button and a csv will be saved with the ccf coordinate and region for each channel in the following directory `/allen/programs/mindscope/workgroups/np-behavior/tissuecyte/mouseID/Probe_<probe_day>_channels_mouseID_warped.csv`
 
 
