@@ -19,9 +19,9 @@ def get_metrics_directory(base_path: str,  mouse_id: str):
     
     return probe_directories
 
-def generate_templeton_metric_path_days(mouse_id: str, record_node: str):
-    record_node = record_node.replace('_', ' ')
-    base_path = pathlib.Path('//allen/programs/mindscope/workgroups/templeton/TTOC/pilot recordings')
+def generate_templeton_metric_path_days(mouse_id: str, base_path: str, record_node: str):
+    record_node = 'Record Node {}'.format(record_node)
+    base_path = pathlib.Path(base_path)
     mouse_dirs = get_metrics_directory(base_path, mouse_id)
     probe_metrics_dirs = {}
     metrics_path_days = {}
