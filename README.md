@@ -88,7 +88,7 @@ After the reassignments have been done, open a command prompt terminal and ssh i
   * To allocate resources, run the command `srun -N1 -c50 -t10:00:00 --mem=250gb -p braintv --pty bash`
   * If allocating takes too long, try changing to --mem=100gb
   * Once resources have been allocated, run this command `cd /allen/scratch/aibstemp/arjun.sridhar/dist/`
-  * Finally run the command if all the probes need to have images/areas generated `./preprocess_generation --mouseID <mouseID> --useAllProbes yes
+  * Finally run the command if all the probes need to have images/areas generated `./preprocess_generation --mouseID <mouseID> --useAllProbes yes`
   * The entire process take around 5 hours to complete
   * The same process can be repeated for any other mouse ids by opening another command prompt and following the instructions above
   
