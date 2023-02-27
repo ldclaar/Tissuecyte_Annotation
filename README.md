@@ -90,6 +90,7 @@ After the reassignments have been done, open a command prompt terminal and ssh i
   * Once resources have been allocated, run this command `cd /allen/scratch/aibstemp/arjun.sridhar/dist/`
   * Finally run the command if all the probes need to have images/areas generated `./preprocess_generation --mouseID <mouseID> --useAllProbes yes
   * The entire process take around 5 hours to complete
+  * The same process can be repeated for any other mouse ids by opening another command prompt and following the instructions above
   
 ### Refinement App
 This app allows for the alignment of the 384 channels to the corresponding regions of interest. Run the command `python volume_alignment.py --mouseID <mouseID>`
