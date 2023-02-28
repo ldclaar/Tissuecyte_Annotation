@@ -36,6 +36,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
 parser.add_argument('-t', '--templeton', help='Templeton experiment', required=False, default = "")
 parser.add_argument('-r', '--record', help='Record Node number', required=False, default = "")
+parser.add_argument('-o', '--oldDirStruct', help='Old Directory Structure', required=False, default="")
 
 SCALING_FACTOR = 1.5
 DEFAULT_COLOR_VALUES = [[0, 256], [0, 256], [0, 1000]]
@@ -383,7 +384,7 @@ class PlotDisplayItem():
 
 # class to do the alignment between channels and regions
 class VolumeAlignment(QWidget):
-    def __init__(self, mouse_id, templeton=False, base_path=None, record_node=None):
+    def __init__(self, mouse_id, templeton=False, old_struct=False, base_path=None, record_node=None):
         super().__init__()
         self.mouseID = mouse_id
         self.title = 'Volume Alignment for Mouse {}'.format(self.mouseID)
@@ -401,7 +402,7 @@ class VolumeAlignment(QWidget):
             self.waveform_metrics = pd.read_csv(os.path.join(self.basePath, '1178173272_608671_20220518/1178173272_608671_20220518_probeB_sorted/continuous/Neuropix-PXI-100.0', 
                                                              'metrics.csv'))
         else:
-            self.waveMetricsPath = generate_templeton_metric_path_days(self.mouseID, base_path, record_node)
+            self.waveMetricsPath = generate_templeton_metric_path_days(self.mouseID, base_path, record_node, old_struct=old_struct)
             self.days = sorted(list(self.waveMetricsPath.keys()))
             self.waveform_metrics = pd.read_csv(os.path.join(self.templeBasePath,
                                                             '2022-07-26_14-09-36_620263/Record Node 101/experiment1/recording1/continuous/Neuropix-PXI-100.ProbeB-AP', 
@@ -479,7 +480,12 @@ class VolumeAlignment(QWidget):
         # read reference image, deformation field, probe annotations
         self.reference = sitk.ReadImage( self.reference_file )
         self.field = sitk.ReadImage( self.field_file)
-        self.probeAnnotations = pd.read_csv(os.path.join(self.storageDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
+
+        if os.path.exists(os.path.join(self.storageDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID))):
+            self.probeAnnotations = pd.read_csv(os.path.join(self.storageDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID)))
+        else:
+            self.probeAnnotations = pd.read_csv(os.path.join(self.storageDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
+
         self.metricsList = ['Spread', 'Amplitude', 'Isi_Viol', 'NN_Hit_Rate', 'Firing_Rate', 'Presence_Ratio', 'Velocity_Above', 'Velocity_Below']
         self.label = QLabel('Channel Clicked')
         self.label.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -1856,7 +1862,10 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     if args.templeton:
-        v = VolumeAlignment(mouse_id, templeton=True, base_path=args.templeton, record_node=args.record)
+        if args.oldDirStruct:
+            v = VolumeAlignment(mouse_id, templeton=True, old_struct=True, base_path=args.templeton, record_node=args.record)
+        else:
+            v = VolumeAlignment(mouse_id, templeton=True, base_path=args.templeton, record_node=args.record)
     else:
         v = VolumeAlignment(mouse_id)
     sys.exit(app.exec_())

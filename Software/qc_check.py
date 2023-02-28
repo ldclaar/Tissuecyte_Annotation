@@ -149,4 +149,4 @@ if __name__ == '__main__':
     mouse_id = args.mouseID
     probe = args.probe
     qc = qcChecker(mouse_id, probe)
-    qc.get_amp()
+    qc.get_fr()

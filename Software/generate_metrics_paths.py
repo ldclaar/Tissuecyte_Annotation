@@ -19,18 +19,29 @@ def get_metrics_directory(base_path: str,  mouse_id: str):
     
     return probe_directories
 
-def generate_templeton_metric_path_days(mouse_id: str, base_path: str, record_node: str):
+def generate_templeton_metric_path_days(mouse_id: str, base_path: str, record_node: str, old_struct: bool=False):
     record_node = 'Record Node {}'.format(record_node)
     base_path = pathlib.Path(base_path)
     mouse_dirs = get_metrics_directory(base_path, mouse_id)
+    
     probe_metrics_dirs = {}
     metrics_path_days = {}
 
     for directory in mouse_dirs:
-        date = directory[0:directory.index('_')]
-        probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous')) 
+        if not old_struct:
+            date = directory[directory.rindex('_')+1:]
+            probe_sorted_dir = [d for d in os.listdir(os.path.join(base_path, directory)) if os.path.isdir(os.path.join(base_path, directory, d))][0]
+
+            probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory, probe_sorted_dir, record_node, 'experiment1', 'recording1', 'continuous')) 
+                      if os.path.isdir(os.path.join(base_path, directory, probe_sorted_dir, record_node, 'experiment1', 'recording1', 'continuous'))]
+
+            probe_metrics_dirs [date] = [os.path.join(base_path, directory, probe_sorted_dir, record_node, 'experiment1', 'recording1', 'continuous', d) 
+                                     for d in probe_dirs]
+        else:
+            date = directory[0:directory.index('_')]
+            probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous')) 
                       if os.path.isdir(os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous'))]
-        probe_metrics_dirs [date] = [os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous', d) for d in probe_dirs]
+            probe_metrics_dirs [date] = [os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous', d) for d in probe_dirs]
             
     for date in probe_metrics_dirs:
         for d in probe_metrics_dirs[date]:
