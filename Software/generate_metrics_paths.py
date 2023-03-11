@@ -116,7 +116,7 @@ def generate_metrics_path_ephys(base_path: pathlib.Path, mouse_id: str):
                 metrics = glob.glob('{}'.format(str(pathlib.Path(str(base_path), directory, '*', '*', '*', 'metrics.csv'))))
                 metrics_path_days[day] = metrics
 
-    print(metrics_path_days)
+    #print(metrics_path_days)
     return metrics_path_days
 
 if __name__ == '__main__':
