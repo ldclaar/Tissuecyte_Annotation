@@ -22,15 +22,20 @@ class qcChecker():
         self.spikeFiles = glob.glob(str(self.kiloPath) + '/spikes*.npy')
 
         self.channelCoords = np.load(self.channelFiles[0]) # local coordinates file
+        print(self.channelCoords.dtype)
         self.rawInd = np.load(self.channelFiles[1]) # raw ind file
-
+        print(self.rawInd.dtype)
         self.chnMin = np.min(self.channelCoords[:, 1])
         self.chnMax = np.max(self.channelCoords[:, 1])
 
         self.spikeAmps = np.load(self.spikeFiles[0]) # spikes amps file
+        print(self.spikeAmps.dtype)
         self.spikeClusters = np.load(self.spikeFiles[1]) # spike clusters file
+        print(self.spikeClusters.dtype)
         self.spikeDepths = np.load(self.spikeFiles[2]) # spike depths
+        print(self.spikeDepths.dtype)
         self.spikeTimes = np.load(self.spikeFiles[5]) # spike times
+        print(self.spikeTimes.dtype)
         self.spikeIdx = np.arange(self.spikeClusters.size)
         # Filter for nans in depths and also in amps
         self.kpIdx = np.where(~np.isnan(self.spikeDepths[self.spikeIdx]) &
@@ -40,7 +45,6 @@ class qcChecker():
     def bincount2D(self, x, y, xbin=0, ybin=0, xlim=None, ylim=None, weights=None):
         """
         Computes a 2D histogram by aggregating values in a 2D array.
-
         :param x: values to bin along the 2nd dimension (c-contiguous)
         :param y: values to bin along the 1st dimension
         :param xbin:
@@ -142,6 +146,31 @@ class qcChecker():
         plt.scatter(self.spikeTimes[self.spikeIdx][self.kpIdx][0:-1:100], self.spikeDepths[self.spikeIdx][self.kpIdx][0:-1:100], s=spikes_size[0:-1:100],
                     c=spikes_colours[0:-1:100])
         plt.show()
+
+    def get_correlation_data_img(self):
+        T_BIN = 0.05
+        D_BIN = 40
+
+        chn_min = np.min(np.r_[0, self.spikeDepths[self.spikeIdx][self.kpIdx]])
+        chn_max = np.max(np.r_[384, self.spikeDepths[self.spikeIdx][self.kpIdx]])
+        R, times, depths = self.bincount2D(self.spikeTimes[self.spikeIdx][self.kpIdx],
+                                          self.spikeDepths[self.spikeIdx][self.kpIdx],
+                                          T_BIN, D_BIN, ylim=[chn_min, chn_max])
+        corr = np.corrcoef(R)
+        corr[np.isnan(corr)] = 0
+        scale = 384 / corr.shape[0]
+   
+        data_img = {
+                'img': corr,
+                'scale': np.array([scale, scale]),
+                'levels': np.array([np.min(corr), np.max(corr)]),
+                'offset': np.array([0, 0]),
+                'xrange': np.array([0, 384]),
+                'cmap': 'viridis',
+                'title': 'Correlation',
+                'xaxis': 'Distance from probe tip (um)'
+        }
+        return data_img
 
 if __name__ == '__main__':
     args = parser.parse_args()

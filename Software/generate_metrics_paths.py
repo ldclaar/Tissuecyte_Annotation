@@ -3,13 +3,16 @@
 import pandas as pd
 import argparse
 import os
+import pickle
 import pathlib
+import glob
+from typing import Union
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
 
-# gets the directory where the metrics file is
-def get_metrics_directory(base_path: str,  mouse_id: str):
+# gets the directories for relevatn mouse
+def get_metrics_directory(base_path: Union[str, pathlib.Path],  mouse_id: str):
     directories = os.listdir(base_path)
     probe_directories = []
 
@@ -91,6 +94,31 @@ def generate_metrics_path_days(base_path, mouse_id):
     #print(metrics_path_days)
     return metrics_path_days
 
+def generate_metrics_path_ephys(base_path: pathlib.Path, mouse_id: str):
+    dj_path = '//allen/programs/mindscope/workgroups/dynamicrouting/datajoint/inbox/ks_paramset_idx_1'
+    mouse_dirs = get_metrics_directory(base_path, mouse_id)
+
+    metrics_path_days = {}
+
+    for directory in mouse_dirs:
+        probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory)) if os.path.isdir(os.path.join(base_path, directory, d))]
+
+        if len(probe_dirs) > 0:
+            behavior_dict = pd.read_pickle(os.path.join(base_path, directory, '{}.behavior.pkl'.format(directory)))
+            ephys_day = behavior_dict['items']['behavior']['params']['stage']
+            day = int(ephys_day[ephys_day.index('_') + 1:])
+
+            metrics_dj = glob.glob('{}'.format(str(pathlib.Path(str(dj_path), directory, '*', '*', '*', 'metrics.csv'))))
+
+            if len(metrics_dj) > 0:
+                metrics_path_days[day] = metrics_dj
+            else:
+                metrics = glob.glob('{}'.format(str(pathlib.Path(str(base_path), directory, '*', '*', '*', 'metrics.csv'))))
+                metrics_path_days[day] = metrics
+
+    print(metrics_path_days)
+    return metrics_path_days
+
 if __name__ == '__main__':
     base_path = pathlib.Path('//allen/programs/mindscope/workgroups/np-exp')
     output_path = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior')
@@ -99,4 +127,4 @@ if __name__ == '__main__':
     mouse_id = args.mouseID
 
     #generate_metrics_path_days(base_path, output_path, mouse_id)
-    generate_templeton_metric_path_days(mouse_id)
+    print(generate_metrics_path_ephys(base_path, mouse_id))
