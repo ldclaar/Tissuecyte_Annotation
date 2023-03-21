@@ -243,8 +243,7 @@ class PlotDisplayItem():
     def processMetrics(self, templeton=False):
         if not templeton:
             self.waveform_metrics = self.waveform_metrics.drop(columns=['epoch_name_quality_metrics', 'epoch_name_waveform_metrics', 'quality'])
-        else:
-            self.waveform_metrics = self.waveform_metrics.drop(columns=['cluster_id', 'epoch_name'])
+
         #self.wnorm = (2 * (self.waveform_metrics - self.waveform_metrics.min()) / (self.waveform_metrics.max() - self.waveform_metrics.min())) - 1
 
         #self.wnorm['peak_channel'] = self.waveform_metrics['peak_channel']
@@ -395,6 +394,7 @@ class VolumeAlignment(QWidget):
         
         self.basePath = pathlib.Path('//allen/programs/mindscope/workgroups/np-exp')
         self.templeBasePath = pathlib.Path('//allen/programs/mindscope/workgroups/templeton/TTOC/pilot recordings')
+        self.noRecord = False
 
         if not templeton:
             self.waveMetricsPath = generate_metrics_path_ephys(self.basePath, self.mouseID)
@@ -402,11 +402,18 @@ class VolumeAlignment(QWidget):
             self.waveform_metrics = pd.read_csv(os.path.join(self.basePath, '1178173272_608671_20220518/1178173272_608671_20220518_probeB_sorted/continuous/Neuropix-PXI-100.0', 
                                                              'metrics.csv'))
         else:
-            self.waveMetricsPath = generate_templeton_metric_path_days(self.mouseID, base_path, record_node, old_struct=old_struct)
-            self.days = sorted(list(self.waveMetricsPath.keys()))
-            self.waveform_metrics = pd.read_csv(os.path.join(self.templeBasePath,
-                                                            '2022-07-26_14-09-36_620263/Record Node 101/experiment1/recording1/continuous/Neuropix-PXI-100.ProbeB-AP', 
-                                                             'waveform_metrics.csv'))
+            if record_node is None:
+                self.waveMetricsPath = generate_metrics_path_days(base_path, self.mouseID)
+                self.days = sorted(list(self.waveMetricsPath.keys()))
+                self.waveform_metrics = pd.read_csv(os.path.join(self.basePath, '1178173272_608671_20220518/1178173272_608671_20220518_probeB_sorted/continuous/Neuropix-PXI-100.0', 
+                                                                 'metrics.csv'))
+                self.noRecord = True
+            else:
+                self.waveMetricsPath = generate_templeton_metric_path_days(self.mouseID, base_path, record_node, old_struct=old_struct)
+                self.days = sorted(list(self.waveMetricsPath.keys()))
+                self.waveform_metrics = pd.read_csv(os.path.join(self.templeBasePath,
+                                                                '2022-07-26_14-09-36_620263/Record Node 101/experiment1/recording1/continuous/Neuropix-PXI-100.ProbeB-AP', 
+                                                                 'waveform_metrics.csv'))
 
         self.initUI()
         self.displayRegion()
@@ -492,8 +499,8 @@ class VolumeAlignment(QWidget):
         self.label.setStyleSheet('border: 1px solid black;')
 
         self.plots = {}
-
-        if self.templeton:
+        print('Record', self.noRecord)
+        if self.templeton and not self.noRecord:
             print(self.waveform_metrics.columns)
             self.waveform_metrics.drop(columns=(['Unnamed: 0', 'cluster_id', 'epoch_name']), inplace=True)
         else:
@@ -1872,7 +1879,9 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
     if args.templeton:
-        if args.oldDirStruct:
+        if not args.record:
+            v = VolumeAlignment(mouse_id, templeton=True,  base_path=args.templeton)
+        elif args.oldDirStruct:
             v = VolumeAlignment(mouse_id, templeton=True, old_struct=True, base_path=args.templeton, record_node=args.record)
         else:
             v = VolumeAlignment(mouse_id, templeton=True, base_path=args.templeton, record_node=args.record)
