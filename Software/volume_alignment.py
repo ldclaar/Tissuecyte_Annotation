@@ -1223,9 +1223,13 @@ class VolumeAlignment(QWidget):
             # get metrics path for this probe and day
             probe_let_num = probe[probe.index(' ')+1:]
 
-            #key = self.days[int(probe_let_num[1])]
+            if self.templeton:
+                key = self.days[int(probe_let_num[1]) - 1]
             try:
-                paths = self.waveMetricsPath[int(probe_let_num[1])]
+                if self.templeton:
+                    paths = self.waveMetricsPath[key]
+                else:
+                    paths = self.waveMetricsPath[int(probe_let_num[1])]
 
                 for p in paths:
                     if 'probe' + probe_let_num[0] in p:
@@ -1253,8 +1257,13 @@ class VolumeAlignment(QWidget):
             probe_let_num = probe[probe.index(' ')+1:]
 
             try:
-                #key = self.days[int(probe_let_num[1])]
-                paths = self.waveMetricsPath[int(probe_let_num[1])]
+                if self.templeton:
+                    key = self.days[int(probe_let_num[1]) - 1]
+
+                if self.templeton:
+                    paths = self.waveMetricsPath[key]
+                else:
+                    paths = self.waveMetricsPath[int(probe_let_num[1])]
                 for p in paths:
                     if 'probe' + probe_let_num[0] in p:
                         self.path = p
