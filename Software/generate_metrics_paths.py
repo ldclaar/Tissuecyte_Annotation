@@ -72,7 +72,7 @@ def generate_metrics_path_days(base_path, mouse_id):
     metrics_path_days = {}
     days = ['1', '2', '3', '4']
     i = 0
-    for directory in probe_metrics_dirs:
+    for directory in sorted(probe_metrics_dirs):
         if len(directory) > 0:
             for d in directory:
                 #date = d[d.index('_')+1:]

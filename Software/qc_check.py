@@ -6,6 +6,8 @@ import argparse
 from PyQt5 import QtGui
 from matplotlib import cm
 import matplotlib.pyplot as plt
+from generate_metrics_paths import generate_metrics_path_days
+import pickle
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mouseID', help='Mouse ID of session')
@@ -16,31 +18,48 @@ class qcChecker():
     def __init__(self, mouse_id, probe):
         self.mouseID = mouse_id
         self.probe = probe
-        self.kiloPath = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/{}/{}_kilo_data'.format(mouse_id, probe))
+        #self.kiloPath = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/{}/{}_kilo_data'.format(mouse_id, probe))
+        self.basePath = pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/datajoint/inbox/ks_paramset_idx_1')
+        self.metricsPath = generate_metrics_path_days(self.basePath, self.mouseID)
+        self.kiloPath = self.get_kilo_path_pilot(self.metricsPath, self.probe)
+        self.tissuePath = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte/{}'.format(self.mouseID))
 
-        self.channelFiles = glob.glob(str(self.kiloPath) + '/channels*.npy')
-        self.spikeFiles = glob.glob(str(self.kiloPath) + '/spikes*.npy')
+        #self.channelFiles = glob.glob(str(self.kiloPath) + '/channel*.npy')
+        #self.spikeFiles = glob.glob(str(self.kiloPath) + '/spike*.npy')
 
-        self.channelCoords = np.load(self.channelFiles[0]) # local coordinates file
+        self.channelCoords = np.load(pathlib.Path(self.kiloPath, 'channel_positions.npy'), mmap_mode='r+') # local coordinates file
         print(self.channelCoords.dtype)
-        self.rawInd = np.load(self.channelFiles[1]) # raw ind file
+        self.rawInd = np.load(pathlib.Path(self.kiloPath, 'channel_map.npy'), mmap_mode='r+') # raw ind file
         print(self.rawInd.dtype)
         self.chnMin = np.min(self.channelCoords[:, 1])
         self.chnMax = np.max(self.channelCoords[:, 1])
 
-        self.spikeAmps = np.load(self.spikeFiles[0]) # spikes amps file
+        self.spikeAmps = np.load(pathlib.Path(self.kiloPath, 'amplitudes.npy'), mmap_mode='r+') # spikes amps file
         print(self.spikeAmps.dtype)
-        self.spikeClusters = np.load(self.spikeFiles[1]) # spike clusters file
+        self.spikeClusters = np.load(pathlib.Path(self.kiloPath, 'spike_clusters.npy'), mmap_mode='r+') # spike clusters file
         print(self.spikeClusters.dtype)
-        self.spikeDepths = np.load(self.spikeFiles[2]) # spike depths
+        self.spikeDepths = np.load(pathlib.Path(self.kiloPath, 'spike_depths.npy'),  mmap_mode='r+') # spike depths
         print(self.spikeDepths.dtype)
-        self.spikeTimes = np.load(self.spikeFiles[5]) # spike times
+        self.spikeTimes = np.load(pathlib.Path(self.kiloPath, 'spike_times.npy'), mmap_mode='r+') # spike times
         print(self.spikeTimes.dtype)
         self.spikeIdx = np.arange(self.spikeClusters.size)
         # Filter for nans in depths and also in amps
-        self.kpIdx = np.where(~np.isnan(self.spikeDepths[self.spikeIdx]) &
-                               ~np.isnan(self.spikeAmps[self.spikeIdx]))[0]
+        self.kpIdx = np.where(~np.isnan(self.spikeDepths[self.spikeIdx]))[0]
+                               #~np.isnan(self.spikeAmps[self.spikeIdx]))[0]
     
+    def get_kilo_path_pilot(self, metrics_path: dict, probe_let_num: str):
+        days = sorted(list(metrics_path.keys()))
+        key = days[int(probe_let_num[1]) - 1]
+        paths = metrics_path[key]
+        path = ''
+
+        for p in paths: # get the path for the metrics based on probe/day
+            if 'probe' + probe_let_num[0] in p:
+                path = p
+                break
+
+        return pathlib.Path(path).parent.absolute()
+
     # helper function for firing rate 
     def bincount2D(self, x, y, xbin=0, ybin=0, xlim=None, ylim=None, weights=None):
         """
@@ -170,7 +189,14 @@ class qcChecker():
                 'title': 'Correlation',
                 'xaxis': 'Distance from probe tip (um)'
         }
-        return data_img
+
+        image_plots_path = pathlib.Path(self.tissuePath, 'image_plots')
+        if not image_plots_path.exists():
+            image_plots_path.mkdir()
+
+        with open(pathlib.Path(image_plots_path, '{}_corr.pickle'.format(self.probe)), 'wb') as f:
+            pickle.dump(data_img, f)
+        #return data_img
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -178,4 +204,4 @@ if __name__ == '__main__':
     mouse_id = args.mouseID
     probe = args.probe
     qc = qcChecker(mouse_id, probe)
-    qc.get_fr()
+    qc.get_correlation_data_img()
