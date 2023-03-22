@@ -220,7 +220,7 @@ class AnnotationProbesViewer(QWidget):
                 pre.imageGenerate(probe)
             """
 
-        all_probes = 'yes'
+        #all_probes = 'yes'
         print(all_probes)
         print('User', user)
         hostname='hpc-login'
