@@ -22,7 +22,7 @@ def get_metrics_directory(base_path: Union[str, pathlib.Path],  mouse_id: str):
     
     return probe_directories
 
-def generate_templeton_metric_path_days(mouse_id: str, base_path: str, record_node: str, old_struct: bool=False):
+def generate_templeton_metric_path_days(mouse_id: str, base_path: str, record_node: str, old_struct: bool=False, synology=False):
     record_node = 'Record Node {}'.format(record_node)
     base_path = pathlib.Path(base_path)
     mouse_dirs = get_metrics_directory(base_path, mouse_id)
@@ -41,10 +41,16 @@ def generate_templeton_metric_path_days(mouse_id: str, base_path: str, record_no
             probe_metrics_dirs [date] = [os.path.join(base_path, directory, probe_sorted_dir, record_node, 'experiment1', 'recording1', 'continuous', d) 
                                      for d in probe_dirs]
         else:
-            date = directory[0:directory.index('_')]
-            probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous')) 
-                      if os.path.isdir(os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous'))]
-            probe_metrics_dirs [date] = [os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous', d) for d in probe_dirs]
+            if not synology:
+                date = directory[0:directory.index('_')]
+                probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous')) 
+                          if os.path.isdir(os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous'))]
+                probe_metrics_dirs [date] = [os.path.join(base_path, directory, record_node, 'experiment1', 'recording1', 'continuous', d) for d in probe_dirs]
+            else:
+                date = directory[0:directory.index('_')]
+                probe_dirs = [d for d in os.listdir(os.path.join(base_path, directory, directory, record_node, 'experiment1', 'recording1', 'continuous')) 
+                          if os.path.isdir(os.path.join(base_path, directory, directory, record_node, 'experiment1', 'recording1', 'continuous'))]
+                probe_metrics_dirs [date] = [os.path.join(base_path, directory, directory, record_node, 'experiment1', 'recording1', 'continuous', d) for d in probe_dirs]
             
     for date in probe_metrics_dirs:
         for d in probe_metrics_dirs[date]:
@@ -57,6 +63,7 @@ def generate_templeton_metric_path_days(mouse_id: str, base_path: str, record_no
                     else:
                         metrics_path_days[date].append(waveform_metrics_path)
 
+    #print(metrics_path_days)
     return metrics_path_days
 
 # gets the path for the metrics csv

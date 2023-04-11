@@ -1,8 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\Software"
+    "\\Software",
+    "\\Software_Analysis"
   ],
-  "SelectedNode": "\\Software\\volume_alignment_inprogress.py",
+  "SelectedNode": "\\Software\\get_spike_depths.py",
   "PreviewInSolutionExplorer": false
 }

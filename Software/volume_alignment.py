@@ -37,6 +37,7 @@ parser.add_argument('--mouseID', help='Mouse ID of session', required=True)
 parser.add_argument('-t', '--templeton', help='Templeton experiment', required=False, default = "")
 parser.add_argument('-r', '--record', help='Record Node number', required=False, default = "")
 parser.add_argument('-o', '--oldDirStruct', help='Old Directory Structure', required=False, default="")
+parser.add_argument('-s', '--synology', help='On Synology drive or not', required=False, default="")
 
 SCALING_FACTOR = 1.5
 DEFAULT_COLOR_VALUES = [[0, 256], [0, 256], [0, 1000]]
@@ -383,7 +384,7 @@ class PlotDisplayItem():
 
 # class to do the alignment between channels and regions
 class VolumeAlignment(QWidget):
-    def __init__(self, mouse_id, templeton=False, old_struct=False, base_path=None, record_node=None):
+    def __init__(self, mouse_id, templeton=False, old_struct=False, synology=False, base_path=None, record_node=None):
         super().__init__()
         self.mouseID = mouse_id
         self.title = 'Volume Alignment for Mouse {}'.format(self.mouseID)
@@ -409,7 +410,7 @@ class VolumeAlignment(QWidget):
                                                                  'metrics.csv'))
                 self.noRecord = True
             else:
-                self.waveMetricsPath = generate_templeton_metric_path_days(self.mouseID, base_path, record_node, old_struct=old_struct)
+                self.waveMetricsPath = generate_templeton_metric_path_days(self.mouseID, base_path, record_node, old_struct=old_struct, synology=synology)
                 self.days = sorted(list(self.waveMetricsPath.keys()))
                 self.waveform_metrics = pd.read_csv(os.path.join(self.templeBasePath,
                                                                 '2022-07-26_14-09-36_620263/Record Node 101/experiment1/recording1/continuous/Neuropix-PXI-100.ProbeB-AP', 
@@ -1882,7 +1883,10 @@ if __name__ == '__main__':
         if not args.record:
             v = VolumeAlignment(mouse_id, templeton=True,  base_path=args.templeton)
         elif args.oldDirStruct:
-            v = VolumeAlignment(mouse_id, templeton=True, old_struct=True, base_path=args.templeton, record_node=args.record)
+            if args.synology:
+                v = VolumeAlignment(mouse_id, templeton=True, old_struct=True, synology=True, base_path=args.templeton, record_node=args.record)
+            else:
+                v = VolumeAlignment(mouse_id, templeton=True, old_struct=True, base_path=args.templeton, record_node=args.record)
         else:
             v = VolumeAlignment(mouse_id, templeton=True, base_path=args.templeton, record_node=args.record)
     else:

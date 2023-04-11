@@ -1,73 +1,66 @@
 import numpy as np
-from generate_metrics_paths import generate_metrics_path_ephys, generate_metrics_path_days
 import pathlib
 import argparse
 import os
 import matplotlib.pyplot as plt
+import pandas as pd
+from qc_check import qcChecker
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--mouseID', help='Mouse ID of session')
-parser.add_argument('--probe', help='Desired probe')
+# gets the spike depth for a given kilo sort directory and saves numpy file in same directory
+def generate_spike_depth(kilo_sort_dir:pathlib.Path) -> None:
+    print(kilo_sort_dir)
+    output_path = pathlib.Path(kilo_sort_dir, 'spike_depths.npy') # output path for spike depths
+    sparse_features = np.load(os.path.join(kilo_sort_dir, 'pc_features.npy'), mmap_mode='r').squeeze().transpose((0, 2, 1)) # pc features
+    print(sparse_features.shape)
+    sparse_features_ind = np.load(os.path.join(kilo_sort_dir, 'pc_feature_ind.npy'), mmap_mode='r') # pc features ind
+    spike_templates = np.load(os.path.join(kilo_sort_dir, 'spike_templates.npy'), mmap_mode='r')[:, 0]
+    print(spike_templates.shape)
+    spike_times = np.load(os.path.join(kilo_sort_dir, 'spike_times.npy'), mmap_mode='r')[:, 0]
+    spike_times = spike_times / 30000.
+    print(spike_times.shape)
+    channel_positions = np.load(os.path.join(kilo_sort_dir, 'channel_positions.npy'), mmap_mode='r')
 
-def get_kilo_path_pilot(metrics_path: dict, probe_let_num: str):
-    days = sorted(list(metrics_path.keys()))
-    key = days[int(probe_let_num[1]) - 1]
-    paths = metrics_path[key]
-    path = ''
+    nbatch = 50000
+    c = 0
+    spikes_depths = np.zeros_like(spike_times)
+    nspi = spikes_depths.shape[0]
 
-    for p in paths: # get the path for the metrics based on probe/day
-        if 'probe' + probe_let_num[0] in p:
-            path = p
+    while True:
+        ispi = np.arange(c, min(c + nbatch, nspi))
+        # take only first component
+        features = sparse_features[ispi, :, 0]
+        features = np.maximum(features, 0) ** 2  # takes only positive values into account
+
+
+        ichannels = sparse_features_ind[spike_templates[ispi]].astype(np.uint32)
+        # features = np.square(self.sparse_features.data[ispi, :, 0])
+        # ichannels = self.sparse_features.cols[self.spike_templates[ispi]].astype(np.int64)
+        ypos = channel_positions[ichannels, 1]
+        #ypos = ypos[:, 0, :]
+        with np.errstate(divide='ignore'):
+            print('Features', features.shape)
+            print('Ypos', ypos.shape)
+            spikes_depths[ispi] = (np.sum(np.transpose(ypos * features) /np.sum(features, axis=1), axis=0))
+        c += nbatch
+        if c >= nspi:
             break
 
-    return pathlib.Path(path).parent.absolute()
-
-def get_templates(path:pathlib.Path):
-    return np.load(pathlib.Path(path, 'templates.npy'), 'r+')
-
-def get_channels(templates, cols):
-    """ Gets peak channels for each waveform"""
-    tmp = templates
-    n_templates, n_samples, n_channels = tmp.shape
-    if cols is None:
-        template_peak_channels = np.argmax(tmp.max(axis=1) - tmp.min(axis=1), axis=1)
-    else:
-        # when the templates are sparse, the first channel is the highest amplitude channel
-        template_peak_channels = cols[:, 0]
-
-    return template_peak_channels
-
-def get_templates_col(path:pathlib.Path):
-    return np.load(pathlib.Path(path, 'templates_ind.npy'), 'r+')
-
-def get_channel_positions(path:pathlib.Path):
-    return np.load(pathlib.Path(path, 'channel_positions.npy'))
-
-def get_spike_clusters(path:pathlib.Path):
-    return np.load(pathlib.Path(path, 'spike_clusters.npy'), 'r+')
-
-def generate_spike_depth_pilot(metrics_path, probe_let_num):
-    path = get_kilo_path_pilot(metrics_path, probe_let_num)
-    templates = get_templates(path)
-    templates_cols = get_templates_col(path)
-    templates_channels = get_channels(templates, templates_cols).astype(np.int64)
-    channel_positions = get_channel_positions(path)
-    spike_clusters = get_spike_clusters(path)
-    
-    clusters_depths = channel_positions[templates_channels, 1]
-    spike_depths = clusters_depths[spike_clusters]
-    np.save(pathlib.Path(path, 'spike_depths.npy'), spike_depths)
-
-    return spike_depths
+    np.save(output_path, spikes_depths)
 
 if __name__ == '__main__':
-    args = parser.parse_args()
+    mouse_id = '644547'
+    sessions = ['DRpilot_644866_20230207', 'DRpilot_644866_20230208', 'DRpilot_644866_20230209', 'DRpilot_644866_20230210']
+    probes = ['probeA', 'probeB', 'probeC', 'probeD', 'probeE', 'probeF']
 
-    mouse_id = args.mouseID
-    probe = args.probe
-    base_path = pathlib.Path('//allen/programs/mindscope/workgroups/dynamicrouting/datajoint/inbox/ks_paramset_idx_1')
-    t_path = pathlib.Path('//allen/programs/mindscope/workgroups/np-behavior/tissuecyte')
+    for session in sessions:
+        day = 1
+        for probe in probes:
+            path = '//allen/programs/mindscope/workgroups/templeton/TTOC/pilot recordings'.format(
+                session, session, probe)
+            kilo_sort_path = pathlib.Path(path)
+            probe = probe[-1] + str(day)
+            if kilo_sort_path.exists():
+                generate_spike_depth(kilo_sort_path)
+                qcChecker(kilo_sort_path, mouse_id, probe).get_correlation_data_img()
 
-    #output_path = pathlib.Path(t_path, mouse_id, '{}_kilo_data'.format(probe), 'spikes.depths.npy')
-    metrics = generate_metrics_path_days(base_path, mouse_id)
-    generate_spike_depth_pilot(metrics, probe)
+        day += 1
