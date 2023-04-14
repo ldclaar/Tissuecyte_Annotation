@@ -90,6 +90,7 @@ After the reassignments have been done, open a command prompt terminal and ssh i
   * Once resources have been allocated, run this command `cd /allen/scratch/aibstemp/arjun.sridhar/dist/`
   * Finally, run the command `./preprocess_generation --mouseID <mouseID> --useAllProbes yes` if all the probes need to have images/areas generated
   * Otherwise, run the command `./preprocess_generation --mouseID <mouseID>` and only the probes that were reassigned/modified from the previous step will have images generated. This assumes that images have already been generated. If you need to generate all of them again, run the above command
+  * If you need to specify a probe, run the following: `./preprocess_generation --mouseID <mouseID> --probe <probe>`
   * The entire process takes around 5 hours to complete if all the probes need to have images generated
   * The same process can be repeated for any other mouse ids by opening another command prompt and following the instructions above
   
