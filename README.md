@@ -1,5 +1,5 @@
 # Tissuecyte_Annotation
-App for Tissuecyte Annotation. Annotations are done in a 10 Micron space and then warped to 25 Micron CCF space.
+App for Tissuecyte Annotation. Annotations are done in a 10 Micron affine aligned space and then warped to 25 Micron CCF space.
 
 # Environment Setup
 First, create a new environment, and then activate the environment (app is currently using python 3.9.12):
