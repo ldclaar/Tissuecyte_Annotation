@@ -28,7 +28,8 @@ def ssh_to_hpc(user, psswd, mouse_id, down_sample):
 
     #cmd_allocation = 'srun -c 1 --mem=1mb -p celltypes --pty bash; pwd'
     # cd to directory and and call resampling job
-    cmd_execute = 'cd /allen/scratch/aibstemp/arjun.sridhar; pwd; srun -N1 -c50 -t5:00:00 --mem=250gb -p celltypes resample_job.sh {} {}'.format(mouse_id, down_sample) 
+    # cmd_execute = 'pwd; srun -N1 -c50 -t5:00:00 --mem=250gb -p celltypes /allen/programs/mindscope/workgroups/templeton-psychedelics/lesliec/resample_job.sh {} {}'.format(mouse_id, down_sample)
+    cmd_execute = 'cd /allen/programs/mindscope/workgroups/templeton-psychedelics/lesliec; pwd; srun -N1 -c50 -t5:00:00 --mem=250gb -p celltypes resample_job.sh {} {}'.format(mouse_id, down_sample)
 
     ssh=paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

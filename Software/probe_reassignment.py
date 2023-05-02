@@ -42,8 +42,8 @@ class AnnotationProbesViewer(QWidget):
         super().__init__()
         # directory and csv fields
         self.mouseID = mouse_id
-        
-        self.dir = '//allen/programs/mindscope/workgroups/np-behavior/tissuecyte'
+
+        self.dir = '//allen/programs/mindscope/workgroups/templeton-psychedelics/tissuecyte'
         self.workingDirectory = pathlib.Path('{}/{}'.format(self.dir, self.mouseID))
         print('Fetching Data')
         self.storage_directory = pathlib.Path('{}/field_reference'.format(self.dir))
@@ -86,7 +86,7 @@ class AnnotationProbesViewer(QWidget):
         self.mainLayout = QHBoxLayout()
         self.hButtonLayout = QHBoxLayout()
         #self.fig._widget.setAutoFillBackground(True)
-        
+
         #self.mainLayout.addidget(self.panel, 1)
         self.mainLayout.addWidget(self.fig._widget)
 
@@ -109,7 +109,7 @@ class AnnotationProbesViewer(QWidget):
         self.trialOld.addItem('4')
         self.trialOld.addItem('5')
         self.labelOld.addWidget(self.trialOld)
-        
+
         # display for new probe and number drop down
         self.probeNew = QComboBox()
         self.probeNew.addItem('New Probe')
@@ -148,7 +148,7 @@ class AnnotationProbesViewer(QWidget):
 
         self.checkLabel = QLabel('Select probes to show/hide')
         self.checkLayout = QHBoxLayout()
-        
+
         self.aCheckBox = QCheckBox('A Probes')
         self.bCheckBox = QCheckBox('B Probes')
         self.cCheckBox = QCheckBox('C Probes')
@@ -183,7 +183,7 @@ class AnnotationProbesViewer(QWidget):
 
         self.scatterLayout.addWidget(self.main_frame)
         self.scatterLayout.addLayout(self.labelLayout)
-        
+
         self.probesGenerate = set()
         self.qProbe = []
         self.qTrial = []
@@ -229,7 +229,7 @@ class AnnotationProbesViewer(QWidget):
 
         #cmd_allocation = 'srun -c 1 --mem=1mb -p celltypes --pty bash; pwd'
         # cd to directory and and call resampling job
-        cmd_execute = 'cd /allen/scratch/aibstemp/arjun.sridhar; pwd; srun -N1 -c50 -t10:00:00 --mem=250gb -G1 -p braintv image_generate.sh {} {}'.format(mouse_id, all_probes) 
+        cmd_execute = 'cd /allen/programs/mindscope/workgroups/templeton-psychedelics/lesliec; pwd; srun -N1 -c50 -t10:00:00 --mem=250gb -G1 -p braintv image_generate.sh {} {}'.format(mouse_id, all_probes)
 
         ssh=paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -297,9 +297,9 @@ class AnnotationProbesViewer(QWidget):
         self.trialOld.addItem('3')
         self.trialOld.addItem('4')
 
-        for probe in qProbe: 
+        for probe in qProbe:
             self.probeOld.addItem(probe)
-          
+
         for trial in qTrial:
             self.trialOld.addItem(trial)
 
@@ -312,7 +312,7 @@ class AnnotationProbesViewer(QWidget):
         probes = self.updatedAnnotations['probe_name'].unique()
         print(probes)
         orig_counts = len([p for p in probes if 'orig_Probe' in p])
-        
+
         if not 'orig_Probe' in self.probeOld.currentText(): # new probe is not one of the probes currently displayed
             probe_name_old = 'Probe' + ' ' + self.probeOld.currentText() + self.trialOld.currentText()
             probe_name_new = 'Probe' + ' ' + self.probeNew.currentText() + self.trialNew.currentText()
@@ -331,7 +331,7 @@ class AnnotationProbesViewer(QWidget):
             #self.trialOld.addItem(probe_name_new[probe_name_new.index(' ') + 1:])
             self.qTrial.append(probe_name_new[probe_name_new.index(' ') + 1:])
             self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == probe_name_new, 'probe_name'] = 'orig_{}'.format(probe_name_new)
-       
+
         self.populateDropDown(self.qProbe, self.qTrial)
         print(probe_name_old)
         self.updatedAnnotations.loc[self.updatedAnnotations['probe_name'] == probe_name_old, 'probe_name'] = probe_name_new
@@ -350,7 +350,7 @@ class AnnotationProbesViewer(QWidget):
         self.updatedAnnotations.to_csv(os.path.join(self.directory, 'post_probe_annotations_updated.csv'))
         self.update_plot(self.updatedAnnotations)
         """
-    
+
     # removes point when point is clicked on
     def removePoint(self, event):
         x_ml = int(np.round(event.xdata * 2.5)) # x coordinate of click
@@ -377,7 +377,7 @@ class AnnotationProbesViewer(QWidget):
             self.probesGenerate.add(probe)
             self.updatedAnnotations.drop([min_x_index], inplace=True)
             self.updatedAnnotations.reset_index(drop=True, inplace=True)
-            self.update_plot(self.updatedAnnotations) 
+            self.update_plot(self.updatedAnnotations)
             self.update_plot_2d(self.updatedAnnotations)
         except KeyError:
             pass
@@ -385,29 +385,29 @@ class AnnotationProbesViewer(QWidget):
         if x_data[min_x_index] < y_data[min_y_index]:
             self.updatedAnnotations.drop([min_x_index], inplace=True)
             self.updatedAnnotations.reset_index(drop=True, inplace=True)
-            self.update_plot(self.updatedAnnotations) 
+            self.update_plot(self.updatedAnnotations)
             self.update_plot_2d(self.updatedAnnotations)
         else:
             self.updatedAnnotations.drop([min_y_index], inplace=True)
             self.updatedAnnotations.reset_index(drop=True, inplace=True)
-            self.update_plot(self.updatedAnnotations) 
+            self.update_plot(self.updatedAnnotations)
             self.update_plot_2d(self.updatedAnnotations)
         """
-      
+
     # explicity close visvis widget
     def closeEvent(self, event):
         self.fig._widget.close()
 
     def create_main_frame(self):
-        # Create the mpl Figure and FigCanvas objects. 
+        # Create the mpl Figure and FigCanvas objects.
         # 5x4 inches, 100 dots-per-inch
-        
+
         self.dpi = 100
         self.fig_2d = Figure((10, 5), dpi=self.dpi)
         self.canvas = FigureCanvas(self.fig_2d)
         self.canvas.setParent(self.main_frame)
-        
-        # Since we have only one plot, we can use add_axes 
+
+        # Since we have only one plot, we can use add_axes
         # instead of add_subplot, but then the subplot
         # configuration tool in the navigation toolbar wouldn't
         # work.
@@ -439,15 +439,15 @@ class AnnotationProbesViewer(QWidget):
         #self.axes.set_xticklabels([])
         #self.axes.set_yticklabels([])
         #self.axes.set_zticklabels([])
-        self.axes.set_facecolor('lightgrey') 
-        
+        self.axes.set_facecolor('lightgrey')
+
         print(self.volume.shape)
-        
+
         for probe_idx, probe_trial in enumerate(probes):
             probe = probe_trial[probe_trial.index(' ') + 1:]
             x = probe_annotations[probe_annotations.probe_name == probe_trial].ML / 2.5
             y = probe_annotations[probe_annotations.probe_name == probe_trial].DV / 2.5
-        
+
             z = probe_annotations[probe_annotations.probe_name == probe_trial].AP / 2.5
 
             # get trajectory
@@ -461,7 +461,7 @@ class AnnotationProbesViewer(QWidget):
 
                 linepts = vv[0] * np.mgrid[-200:200:0.7][:,np.newaxis]
                 linepts += datamean
-            
+
                 if linepts[-1,1] - linepts[0,1] < 0:
                     linepts = np.flipud(linepts)
 
@@ -472,7 +472,7 @@ class AnnotationProbesViewer(QWidget):
             else: # make probe light grey, needs to be reassigned later
                 self.axes.scatter(x,y,c='lightgrey', s=5, alpha=0.95)
                 self.axes.plot(linepts[:,2],linepts[:,1],color='lightgrey', alpha=0.5, label=probe_trial)
-        
+
         #self.axes.legend(loc='upper left')
         #self.axes.set_xlabel('ML')
         #self.axes.set_ylabel('DV')
@@ -497,13 +497,13 @@ class AnnotationProbesViewer(QWidget):
         vis.volshow3(vol)
         probes = probe_annotations['probe_name'].unique()
 
-        temp = self.volume.shape[2] 
+        temp = self.volume.shape[2]
         #self.axes.contourf(self.reference[:, 0], self.reference[:, 1], self.image[:, 2])
         #self.axes.set_xticklabels([])
         #self.axes.set_yticklabels([])
         #self.axes.set_zticklabels([])
-        #self.axes.set_facecolor('black') 
-        
+        #self.axes.set_facecolor('black')
+
         print(self.volume.shape)
         legend = []
         r = R.from_rotvec([0, np.pi, 0])
@@ -512,7 +512,7 @@ class AnnotationProbesViewer(QWidget):
             probe = probe_trial[probe_trial.index(' ') + 1:]
             x = probe_annotations[probe_annotations.probe_name == probe_trial].ML / 2.5
             y = probe_annotations[probe_annotations.probe_name == probe_trial].DV / 2.5
-        
+
             z = probe_annotations[probe_annotations.probe_name == probe_trial].AP / 2.5
 
             # get trajectory
@@ -526,7 +526,7 @@ class AnnotationProbesViewer(QWidget):
 
                 linepts = vv[0] * np.mgrid[-200:200:0.7][:,np.newaxis]
                 linepts += datamean
-            
+
                 if linepts[-1,1] - linepts[0,1] < 0:
                     linepts = np.flipud(linepts)
 
@@ -554,7 +554,7 @@ class AnnotationProbesViewer(QWidget):
                     color_grey = (211, 211, 211)
                     color = tuple(t / 255 for t in color_grey)
                     vis.plot(temp - linepts[:, 2], linepts[:, 1], linepts[:, 0], lw=3, lc=color_grey, axes=self.ax)
-        
+
                 self.probe_lines[probe_trial] = linepts
 
         self.ax.legend = legend
@@ -575,4 +575,3 @@ if __name__ == '__main__':
     app.Create()
     m = AnnotationProbesViewer(mouse_id)
     app.Run()
-    

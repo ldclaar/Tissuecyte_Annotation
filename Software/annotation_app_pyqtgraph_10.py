@@ -54,7 +54,7 @@ class TissuecyteApp10(QWidget):
         self.height = int(320*SCALING_FACTOR)
 
         self.mouseID = mouse_id
-        self.dir = '//allen/programs/mindscope/workgroups/np-behavior/tissuecyte'
+        self.dir = '//allen/programs/mindscope/workgroups/templeton-psychedelics/tissuecyte'
         self.workingDirectory = pathlib.Path('{}/{}'.format(self.dir, self.mouseID))
         print('Fetching Data')
         self.model_directory = pathlib.Path('{}/field_reference'.format(self.dir))
@@ -99,7 +99,7 @@ class TissuecyteApp10(QWidget):
                        'E1': 'cyan', 'E2': 'dark cyan', 'E3': 'light cyan', 'E4': 'turquoise', 'E5': 'teal',
                        'F1': 'green', 'F2': 'dark green', 'F3': 'light green', 'F4': 'lawn green', 'F5': 'dark sea green'}
 
-        
+
         self.rgb = {'A1': '(255, 0, 0)', 'A2': '(139, 0, 0)', 'A3': '(205, 92, 92)', 'A4': '(255, 69, 0)', 'A5': '(219, 112, 147)',
                     'B1': '(0, 0, 255)', 'B2': '(0, 0, 139)', 'B3': '( 0, 191, 255)', 'B4': '(30, 144, 255)', 'B5': '( 70, 130, 180)',
                     'C1': '(255, 192, 203)', 'C2': '(255, 20, 147)', 'C3': '(255, 105, 180)', 'C4': '(255, 0, 255)', 'C5': '(139, 0, 139)',
@@ -152,7 +152,7 @@ class TissuecyteApp10(QWidget):
         self.probeNames.currentTextChanged.connect(self.probeChange)
         self.probeName = 'Probe'
         self.probeLayout.addWidget(self.probeNames, 0, 0)
-        
+
         self.probeNumber = QComboBox()
         self.probeNumber.setFocusPolicy(QtCore.Qt.NoFocus)
         self.probeNumber.addItem('Number')
@@ -347,7 +347,7 @@ class TissuecyteApp10(QWidget):
 
         # add to right layout
         self.rightLayout.addLayout(self.checkSliderLayout)
-        
+
         # add to bottom layout
         self.bottomLayout.addLayout(self.leftLayout)
         self.bottomLayout.addLayout(self.rightLayout)
@@ -371,7 +371,7 @@ class TissuecyteApp10(QWidget):
         self.initial = True
         self.viewCoronal()
         #self.show()
-    
+
     # processes the probe name change from the drop down
     def probeChange(self, text):
         print(text)
@@ -383,12 +383,12 @@ class TissuecyteApp10(QWidget):
         print(text)
         self.trial = text
         self.updateProbeLabel()
-    
+
     def updateProbeHelper(self):
         #self.colorLabel.setText(self.colors[self.probeName + self.trial])
         self.colorLabel.setText('')
         self.colorLabel.setStyleSheet("background-color: rgb%s;color: black;font: 12px" %(self.rgb[self.probeName + self.trial]))
-    
+
     # warps the annotated points
     def warpPoints(self):
         warp_points(self.workingDirectory, self.mouseID, self.annotations, self.field, self.reference, self.progress)
@@ -408,12 +408,12 @@ class TissuecyteApp10(QWidget):
             self.point_lock = True
             self.pointLockButton.setText('Point Lock ON')
             self.pointLockButton.setStyleSheet("background-color: rgb(170,0,0);color: white;font: bold 12px")
-    
+
     # undo the last annotation made for a selected probe
     def undoLastAnnotation(self):
         if not self.point_lock:
             if self.annotations.iloc[-1].probe_name == self.selectedProbe:
-                self.annotations = self.annotations.iloc[:-1] # remove last point 
+                self.annotations = self.annotations.iloc[:-1] # remove last point
                 self.saveData()
 
                 self.refreshImage(value_draw=True)
@@ -454,18 +454,18 @@ class TissuecyteApp10(QWidget):
                     elif self.currentView == 2:
                         matching_index = self.annotations[(self.annotations.ML == self.slider.value()) &
                                                                (self.annotations.probe_name == self.selectedProbe)].index.values
-    
+
                     if len(matching_index) > 0:
                         self.annotations = self.annotations.drop(index=matching_index)
-    
+
                         self.saveData()
-                    
+
                         self.refreshImage(value_draw=True)
-    
+
     def updateProbeLabel(self):
         if self.probeName != 'Probe' and self.trial != 'Number':
             self.updateProbeHelper()
-    
+
     def resetZoom(self):
         self.refreshImage(value_draw=True, autoRange=True)
 
@@ -473,7 +473,7 @@ class TissuecyteApp10(QWidget):
         self.redSlider.setValue((DEFAULT_COLOR_VALUES[0][0], DEFAULT_COLOR_VALUES[0][1]))
         self.greenSlider.setValue((DEFAULT_COLOR_VALUES[1][0], DEFAULT_COLOR_VALUES[1][1]))
         self.blueSlider.setValue((DEFAULT_COLOR_VALUES[2][0], DEFAULT_COLOR_VALUES[2][1]))
-        
+
         self.refreshImage(change_view=True)
 
     # clears the annotations, does not remove them from csv
@@ -486,7 +486,7 @@ class TissuecyteApp10(QWidget):
     # shows the hidden points
     def showPoints(self):
         self.refreshImage(value_draw=True)
-    
+
     def clickedOnImage(self , event):
         print('Click')
         event.accept()
@@ -527,7 +527,7 @@ class TissuecyteApp10(QWidget):
                     # Remove limitation of 1 point per probe per slice
                     # if len(matching_index) > 0:
                     #     self.annotations = self.annotations.drop(index=matching_index)
-                
+
                     self.annotations = self.annotations.append(pd.DataFrame(data = {'AP' : [AP],
                                         'ML' : [ML],
                                         'DV': [DV],
@@ -596,7 +596,7 @@ class TissuecyteApp10(QWidget):
         else:
             self.refreshImage(toggle='green_uncheck')
             self.isGreenChecked = False
-    
+
     # toggle the blue check box, to filter/unfilter blue
     def toggleBlue(self):
         if not self.isBlueChecked:
@@ -605,17 +605,17 @@ class TissuecyteApp10(QWidget):
         else:
             self.refreshImage(toggle='blue_uncheck')
             self.isBlueChecked = False
-    
+
     # check if the red slider has been moved
     def redSliderMoved(self):
         if not self.isRedChecked:
             self.refreshImage(slider_moved='red', val=self.redSlider.value())
-    
+
     # check if the green slider has been moved
     def greenSliderMoved(self):
         if not self.isGreenChecked:
             self.refreshImage(slider_moved='green', val=self.greenSlider.value())
-    
+
     # check if the blue slider has been moved
     def blueSliderMoved(self):
         if not self.isBlueChecked:
@@ -640,7 +640,7 @@ class TissuecyteApp10(QWidget):
             self.hidePoints()
             self.refreshData()
             self.refreshImage(change_view=True, value_draw=True)
-    
+
     # horizontal view
     def viewHorizontal(self):
         self.currentView = 1
@@ -652,7 +652,7 @@ class TissuecyteApp10(QWidget):
         self.coronalButton.setStyleSheet("background-color: white")
         self.horizontalButton.setStyleSheet("background-color: gray")
         self.sagittalButton.setStyleSheet("background-color: white")
-        
+
         if self.initial:
             self.refreshImage(change_view=False)
         else:
@@ -672,14 +672,14 @@ class TissuecyteApp10(QWidget):
         self.coronalButton.setStyleSheet("background-color: white")
         self.horizontalButton.setStyleSheet("background-color: white")
         self.sagittalButton.setStyleSheet("background-color: gray")
-        
+
         if self.initial:
             self.refreshImage(change_view=False)
         else:
             self.hidePoints()
             self.refreshData()
             self.refreshImage(change_view=True, value_draw=True)
-    
+
     # helper function to threshold image
     def imageClip(self, color, val):
         if color == 'red':
@@ -699,13 +699,13 @@ class TissuecyteApp10(QWidget):
         c = QtWidgets.QGraphicsRectItem(j, k, 2.5, 2.5)
         c.setPen(QtGui.QPen(color, 0.0000001))
         c.setBrush(QtGui.QBrush(color, Qt.SolidPattern))
-       
+
         view = self.image.getView()
         view.addItem(c)
-    
+
     def drawPoints(self, color, probe_let, probe_trial, posx, posy, x, y):
         point_size = int(2)
-        
+
         if posx is not None and posy is not None: # clicking has occurred, so use posx and posy, mouse coords
             for j in range(posx-point_size,posx+point_size):
                  for k in range(posy-point_size,posy+point_size):
@@ -725,11 +725,11 @@ class TissuecyteApp10(QWidget):
     # posy - y position of mouse click
     def refreshImage(self, toggle='None', slider_moved='None', val=0, change_view=False, value_draw=False, click_draw=False, posx=None, posy=None, autoRange=False):
         plane = None
-        
+
         if self.data_loaded:
             plane = self.volume
-            print('Plane', plane.shape)
-            print(self.slider.value())
+            # print('Plane', plane.shape)
+            # print(self.slider.value())
             if change_view and not self.initial:
                 # get existing values from sliders to update new view, change of view
                 plane[:, :, 0] = self.imageClip('red', self.redSlider.value())
@@ -748,7 +748,7 @@ class TissuecyteApp10(QWidget):
                     #self.blueOld = plane[:, :, 2].copy()
                     plane[:, :, 2] = 0
 
-            if slider_moved == 'red': # if the red slider has moved, update plane 
+            if slider_moved == 'red': # if the red slider has moved, update plane
                 plane[:, :, 0] = self.imageClip('red', val)
             elif slider_moved == 'green': # same as above but with green slider
                 plane[:, :, 1] = self.imageClip('green', val)
@@ -809,7 +809,7 @@ class TissuecyteApp10(QWidget):
         else:
             # im8 = Image.fromarray(np.ones((self.height,self.width,3),dtype='uint8')*255)
             plane = np.ones((self.height,self.width,3),dtype='uint8')*255
-            
+
         rotate = np.rot90(plane)
         flip = np.flipud(rotate)
         self.image.setImage(flip, levels=(0, 255), autoRange=autoRange)
@@ -827,7 +827,7 @@ class TissuecyteApp10(QWidget):
         else: # create new dataframe
             self.annotations = pd.DataFrame(columns = ['AP','ML','DV', 'probe_name'])
             self.reassigned = False
-         
+
         self.refreshImage(value_draw=True)
 
     # loads the volumes from the directory with the resampled images
@@ -840,7 +840,7 @@ class TissuecyteApp10(QWidget):
              arr = sitk.GetArrayFromImage(resamp_image).T
              intensity_arrays[imcolor] = arr
              print(intensity_arrays[imcolor].shape)
-        
+
         # save red, green, and blue arrays
         self.red_arr = intensity_arrays['red']
         self.green_arr = intensity_arrays['green']
@@ -854,7 +854,7 @@ class TissuecyteApp10(QWidget):
         self.volume = self.getColorVolume()
 
         self.data_loaded = True
-        
+
     def getColorVolume(self, rgb_levels=DEFAULT_COLOR_VALUES):
         level_adjusted_arrays = []
         for colori, int_level in zip(['red', 'green', 'blue'], rgb_levels):
@@ -869,7 +869,7 @@ class TissuecyteApp10(QWidget):
                 self.annotations.to_csv(os.path.join(self.workingDirectory, 'reassigned', 'probe_annotations_{}_reassigned.csv'.format(self.mouseID)))
             else:
                 self.annotations.to_csv(os.path.join(self.workingDirectory, 'probe_annotations_{}.csv'.format(self.mouseID)))
-            
+
 if __name__ == '__main__':
     # command line inputs - mouse id
     args = parser.parse_args()
